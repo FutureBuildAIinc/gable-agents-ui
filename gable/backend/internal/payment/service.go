@@ -14,6 +14,7 @@ import (
 	"github.com/gablelbm/gable/pkg/audit"
 	"github.com/gablelbm/gable/pkg/database"
 	"github.com/google/uuid"
+	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 type Service struct {
@@ -28,6 +29,7 @@ type Service struct {
 	brainOrgID    string         // Brain org_id for this tenant
 	auditLog      *audit.Logger
 	logger        *slog.Logger
+	events        eventpub.Publisher
 }
 
 func NewService(db *database.DB, repo Repository, invoiceRepo invoice.Repository, accountService account.Service) *Service {
@@ -52,6 +54,12 @@ func (s *Service) WithGateway(gw PaymentGateway, publicKey string) *Service {
 func (s *Service) WithBrainNotifier(n *BrainNotifier, orgID string) *Service {
 	s.brainNotifier = n
 	s.brainOrgID = orgID
+	return s
+}
+
+// WithEvents sets the platform event publisher (no-op when unset) and returns the service for chaining.
+func (s *Service) WithEvents(p eventpub.Publisher) *Service {
+	s.events = p
 	return s
 }
 
@@ -114,6 +122,15 @@ func (s *Service) ProcessPayment(ctx context.Context, invoiceID uuid.UUID, amoun
 
 	if err != nil {
 		return nil, err
+	}
+
+	if s.events != nil {
+		s.events.Publish("payment.recorded", eventpub.EntityRef{Kind: "payment", ID: p.ID.String()},
+			eventpub.WithData(map[string]any{
+				"invoice_id":   invoiceID.String(),
+				"amount_cents": amountCents,
+				"method":       string(method),
+			}))
 	}
 
 	// Audit log: payment processed

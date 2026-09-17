@@ -64,6 +64,7 @@ import (
 	"github.com/gablelbm/gable/pkg/middleware"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 func main() {
@@ -96,6 +97,14 @@ func main() {
 	if !strings.EqualFold(cfg.AuthMode, "dev") && os.Getenv("CORS_ORIGINS") == "" {
 		logger.Error("CORS_ORIGINS not set and AUTH_MODE != dev; set CORS_ORIGINS for production or AUTH_MODE=dev for development")
 		os.Exit(1)
+	}
+
+	// Platform event backbone (gable-agents-ui ADR 0001): publish domain
+	// events to the Appwrite events-ingest function. No-op unless
+	// APPWRITE_EVENTS_URL + APPWRITE_EVENTS_KEY are set.
+	eventsPub := eventpub.New(cfg.EventsURL, cfg.EventsKey, cfg.EventsOrg)
+	if cfg.EventsURL != "" {
+		logger.Info("platform event publisher enabled", "org", cfg.EventsOrg)
 	}
 
 	logger.Info("Starting server...", "port", cfg.Port, "auth_mode", cfg.AuthMode, "log_level", cfg.LogLevel)
@@ -224,7 +233,7 @@ func main() {
 
 	// Inventory Service needs to be shared to Order Service
 	inventoryRepo := inventory.NewRepository(db)
-	inventorySvc := inventory.NewService(inventoryRepo)
+	inventorySvc := inventory.NewService(inventoryRepo).WithEvents(eventsPub)
 	inventoryHandler := inventory.NewHandler(inventorySvc)
 	inventoryHandler.RegisterRoutes(mux, scoped("admin", "owner", "warehouse"))
 
@@ -250,7 +259,7 @@ func main() {
 	accountHandler.RegisterRoutes(mux, middleware.RequireRole("admin", "owner", "sales", "finance"))
 
 	quoteRepo := quote.NewRepository(db)
-	quoteSvc := quote.NewService(quoteRepo)
+	quoteSvc := quote.NewService(quoteRepo).WithEvents(eventsPub)
 	quoteHandler := quote.NewHandler(quoteSvc)
 	quoteHandler.RegisterRoutes(mux, scoped("admin", "owner", "sales"))
 
@@ -263,7 +272,7 @@ func main() {
 
 	// Invoice Module
 	invoiceRepo := invoice.NewRepository(db)
-	invoiceSvc := invoice.NewService(invoiceRepo, glSvc, accountSvc, db)
+	invoiceSvc := invoice.NewService(invoiceRepo, glSvc, accountSvc, db).WithEvents(eventsPub)
 	invoiceSvc.WithAuditLog(auditLog)
 	invoiceHandler := invoice.NewHandler(invoiceSvc)
 	invoiceHandler.RegisterRoutes(mux, scoped("admin", "owner", "sales", "finance"))
@@ -358,7 +367,7 @@ func main() {
 	ediHandler := edi.NewEDIHandler(ediRepo, bgSvc, ediSvc)
 	ediHandler.RegisterRoutes(mux, middleware.RequireRole("admin", "owner"))
 
-	orderSvc := order.NewService(orderRepo, inventorySvc, invoiceSvc, customerSvc, poSvc, db)
+	orderSvc := order.NewService(orderRepo, inventorySvc, invoiceSvc, customerSvc, poSvc, db).WithEvents(eventsPub)
 	orderSvc.WithAuditLog(auditLog)
 	orderHandler := order.NewHandler(orderSvc)
 	orderHandler.RegisterRoutes(mux, scoped("admin", "owner", "sales"))
@@ -392,7 +401,7 @@ func main() {
 
 	// Payment Module (with Run Payments gateway)
 	paymentRepo := payment.NewRepository(db)
-	paymentSvc := payment.NewService(db, paymentRepo, invoiceRepo, accountSvc)
+	paymentSvc := payment.NewService(db, paymentRepo, invoiceRepo, accountSvc).WithEvents(eventsPub)
 	paymentSvc.WithAuditLog(auditLog)
 
 	// Run Payments gateway — always constructed; credentials resolve at call
@@ -499,7 +508,7 @@ func main() {
 
 	// Delivery Module
 	deliveryRepo := delivery.NewRepository(db)
-	deliverySvc := delivery.NewService(deliveryRepo)
+	deliverySvc := delivery.NewService(deliveryRepo).WithEvents(eventsPub)
 
 	// Wire OpenRouteService for route optimization + geocoding. The client reads
 	// its key dynamically (DB system_settings → env fallback), so an admin can
@@ -704,6 +713,7 @@ func main() {
 	// constructed inline here historically — two live services over one repo).
 	integrationHandler := integrations.NewHandler(db, pricingSvc, quoteSvc, orderSvc, customerSvc, productSvc, integrationAPIKey)
 	integrationHandler.RegisterRoutes(mux)
+
 
 	// 5z. Apps platform: catalog the unconverted modules, mount converted
 	// apps through the enablement gate, expose the Apps API, and sync

@@ -14,6 +14,7 @@ import (
 	"github.com/gablelbm/gable/pkg/database"
 	"github.com/gablelbm/gable/pkg/money"
 	"github.com/google/uuid"
+	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 type Service struct {
@@ -22,10 +23,17 @@ type Service struct {
 	account  account.Service
 	auditLog *audit.Logger
 	db       *database.DB
+	events   eventpub.Publisher
 }
 
 func NewService(repo Repository, glService *gl.Service, accountService account.Service, db *database.DB) *Service {
 	return &Service{repo: repo, gl: glService, account: accountService, db: db}
+}
+
+// WithEvents sets the platform event publisher (no-op when unset) and returns the service for chaining.
+func (s *Service) WithEvents(p eventpub.Publisher) *Service {
+	s.events = p
+	return s
 }
 
 // WithAuditLog sets the audit logger for financial operation tracking.
@@ -122,6 +130,15 @@ func (s *Service) CreateInvoice(ctx context.Context, inv *Invoice) error {
 				"status":       inv.Status,
 			},
 		})
+	}
+
+	if s.events != nil {
+		s.events.Publish("invoice.created", eventpub.EntityRef{Kind: "invoice", ID: inv.ID.String()},
+			eventpub.WithData(map[string]any{
+				"customer_id":  inv.CustomerID.String(),
+				"total_amount": inv.TotalAmount,
+				"status":       string(inv.Status),
+			}))
 	}
 
 	return nil

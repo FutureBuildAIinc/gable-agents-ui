@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 type Service struct {
@@ -19,6 +20,13 @@ type Service struct {
 	invoiceSvc   InvoiceServiceInterface // nil if invoice service not wired
 	exposureGate ExposureGate            // nil if lumber-index gating not wired
 	logger       *slog.Logger
+	events eventpub.Publisher
+}
+
+// WithEvents sets the platform event publisher (no-op when unset) and returns the service for chaining.
+func (s *Service) WithEvents(p eventpub.Publisher) *Service {
+	s.events = p
+	return s
 }
 
 // ExposureGate is the lumber-index pre-ship gate. Implemented by
@@ -254,7 +262,14 @@ func (s *Service) CompleteRoute(ctx context.Context, routeID uuid.UUID) error {
 			return fmt.Errorf("cannot complete route: delivery %s is still %s", d.ID, d.Status)
 		}
 	}
-	return s.repo.UpdateRouteStatus(ctx, routeID, RouteStatusCompleted)
+	if err := s.repo.UpdateRouteStatus(ctx, routeID, RouteStatusCompleted); err != nil {
+		return err
+	}
+	if s.events != nil {
+		s.events.Publish("delivery.completed", eventpub.EntityRef{Kind: "route", ID: routeID.String()},
+			eventpub.WithData(map[string]any{"delivery_count": len(deliveries)}))
+	}
+	return nil
 }
 
 // Route Management
@@ -303,7 +318,14 @@ func (s *Service) DispatchRoute(ctx context.Context, id uuid.UUID) error {
 	if route.Status != RouteStatusDraft && route.Status != RouteStatusScheduled {
 		return fmt.Errorf("cannot dispatch route in status %s: must be DRAFT or SCHEDULED", route.Status)
 	}
-	return s.repo.UpdateRouteStatus(ctx, id, RouteStatusInTransit)
+	if err := s.repo.UpdateRouteStatus(ctx, id, RouteStatusInTransit); err != nil {
+		return err
+	}
+	if s.events != nil {
+		s.events.Publish("delivery.dispatched", eventpub.EntityRef{Kind: "route", ID: id.String()},
+			eventpub.WithData(map[string]any{"status": string(RouteStatusInTransit)}))
+	}
+	return nil
 }
 
 // Delivery Management

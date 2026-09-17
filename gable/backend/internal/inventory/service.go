@@ -11,6 +11,7 @@ import (
 
 	"github.com/gablelbm/gable/pkg/branchctx"
 	"github.com/google/uuid"
+	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 // ErrNothingAllocated is returned by Release when the product has no allocated
@@ -22,6 +23,13 @@ var ErrNothingAllocated = errors.New("inventory: no allocated stock")
 
 type Service struct {
 	repo Repository
+	events eventpub.Publisher
+}
+
+// WithEvents sets the platform event publisher (no-op when unset) and returns the service for chaining.
+func (s *Service) WithEvents(p eventpub.Publisher) *Service {
+	s.events = p
+	return s
 }
 
 func NewService(repo Repository) *Service {
@@ -67,7 +75,18 @@ func (s *Service) AdjustStock(ctx context.Context, req StockAdjustmentRequest) e
 		return fmt.Errorf("adjustment would drive stock negative for product %s (resulting quantity %g)", req.ProductID, inv.Quantity)
 	}
 
-	return s.repo.UpdateInventory(ctx, inv)
+	if err := s.repo.UpdateInventory(ctx, inv); err != nil {
+		return err
+	}
+	if s.events != nil {
+		s.events.Publish("inventory.adjusted", eventpub.EntityRef{Kind: "inventory", ID: req.ProductID.String()},
+			eventpub.WithData(map[string]any{
+				"location_id":       req.LocationID.String(),
+				"resulting_qty":     inv.Quantity,
+				"adjustment_qty":    req.Quantity,
+			}))
+	}
+	return nil
 }
 
 func (s *Service) MoveStock(ctx context.Context, req StockMovementRequest) error {
@@ -139,6 +158,16 @@ func (s *Service) MoveStock(ctx context.Context, req StockMovementRequest) error
 
 		return nil
 	})
+	// Platform event after a successful move (at-most-once — ADR 0001)
+	if s.events != nil {
+		s.events.Publish("inventory.moved", eventpub.EntityRef{Kind: "inventory", ID: req.ProductID.String()},
+			eventpub.WithData(map[string]any{
+				"from_location_id": req.FromLocationID.String(),
+				"to_location_id":   req.ToLocationID.String(),
+				"quantity":         req.Quantity,
+			}))
+	}
+	return nil
 }
 
 // Allocate reserves stock for a product, spanning multiple locations within the

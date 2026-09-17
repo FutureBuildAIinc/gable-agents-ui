@@ -4,12 +4,14 @@
 package quote
 
 import (
+	"strings"
 	"context"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 // AutoPOService is an optional interface for triggering purchase orders from accepted quotes.
@@ -22,10 +24,17 @@ type Service struct {
 	poSvc       AutoPOService
 	snapshotSvc SnapshotService
 	logger      *slog.Logger
+	events      eventpub.Publisher
 }
 
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo, logger: slog.Default()}
+}
+
+// WithEvents sets the platform event publisher (no-op when unset) and returns the service for chaining.
+func (s *Service) WithEvents(p eventpub.Publisher) *Service {
+	s.events = p
+	return s
 }
 
 // WithAutoPO injects the purchase order service for auto-PO on quote accept.
@@ -53,7 +62,18 @@ func (s *Service) CreateQuote(ctx context.Context, q *Quote) error {
 	//    cleared for a pickup BEFORE it is rolled into the total.
 	normalizeDeliveryAndTotal(q)
 
-	return s.repo.CreateQuote(ctx, q)
+	if err := s.repo.CreateQuote(ctx, q); err != nil {
+		return err
+	}
+	if s.events != nil {
+		s.events.Publish("quote.created", eventpub.EntityRef{Kind: "quote", ID: q.ID.String()},
+			eventpub.WithData(map[string]any{
+				"customer_id": q.CustomerID.String(),
+				"total_amount": q.TotalAmount,
+				"line_count":  len(q.Lines),
+			}))
+	}
+	return nil
 }
 
 // normalizeDeliveryAndTotal applies the delivery-type default, clears the
@@ -122,6 +142,13 @@ func (s *Service) UpdateState(ctx context.Context, id uuid.UUID, state QuoteStat
 
 	if err := s.repo.UpdateQuote(ctx, q); err != nil {
 		return err
+	}
+
+	// Platform event on state change (at-most-once — gable-agents-ui ADR 0001)
+	if s.events != nil {
+		s.events.Publish("quote."+strings.ToLower(string(state)),
+			eventpub.EntityRef{Kind: "quote", ID: q.ID.String()},
+			eventpub.WithBranch(q.BranchID.String()))
 	}
 
 	// Auto-PO: when accepted, trigger POs for special-order items

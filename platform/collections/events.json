@@ -1,0 +1,24 @@
+{
+  "$schema": "appwrite-tablesdb-collection",
+  "databaseId": "platform",
+  "collectionId": "events",
+  "name": "events",
+  "description": "Durable, replayable domain-event log from gable ERP (ADR 0001). Realtime emits on document create; consumers track $createdAt as cursor.",
+  "documentSecurity": false,
+  "enabled": true,
+  "attributes": [
+    { "key": "eventId", "type": "string", "size": 64, "required": true },
+    { "key": "type", "type": "string", "size": 64, "required": true },
+    { "key": "org", "type": "string", "size": 128, "required": true },
+    { "key": "branchId", "type": "string", "size": 64, "required": false },
+    { "key": "entityKind", "type": "string", "size": 32, "required": true },
+    { "key": "entityId", "type": "string", "size": 64, "required": true },
+    { "key": "data", "type": "string", "size": 8192, "required": false },
+    { "key": "at", "type": "string", "size": 40, "required": true }
+  ],
+  "indexes": [
+    { "key": "cursor", "type": "key", "attributes": ["$createdAt"], "orders": ["ASC"] },
+    { "key": "org_type", "type": "key", "attributes": ["org", "type"], "orders": ["ASC", "ASC"] },
+    { "key": "type", "type": "key", "attributes": ["type"], "orders": ["ASC"] }
+  ]
+}

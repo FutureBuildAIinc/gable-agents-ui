@@ -1,0 +1,31 @@
+{
+  "name": "@gable/client",
+  "version": "0.1.0",
+  "description": "Shared client for gable ERP REST access, Appwrite BYOA session, and action helpers for gable-* agent-native micro-UIs.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./auth": {
+      "types": "./src/auth/appwrite-session.ts",
+      "default": "./src/auth/appwrite-session.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest --run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "^6.2.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

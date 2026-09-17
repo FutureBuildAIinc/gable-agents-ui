@@ -86,6 +86,11 @@ type Config struct {
 	FBBrainIntegrationKey string // Shared secret for service-to-service X-Integration-Key auth
 	FBBrainPublicKeyPath  string // Path to Brain's RSA public key PEM for A2A JWS verification
 	FBBrainOrgID          string // Tenant org_id for Brain financial attribution
+
+	// Platform event backbone (Appwrite events-ingest — gable-agents-ui ADR 0001)
+	EventsURL        string // events-ingest function endpoint; empty disables eventpub
+	EventsKey        string // X-Events-Key shared secret for the ingest function
+	EventsOrg        string // Org slug stamped on every published event envelope
 }
 
 func Load() (*Config, error) {
@@ -152,6 +157,11 @@ func Load() (*Config, error) {
 		FBBrainIntegrationKey: getEnv("FB_BRAIN_INTEGRATION_KEY", ""),
 		FBBrainPublicKeyPath:  getEnv("FB_BRAIN_PUBLIC_KEY_PATH", ""),
 		FBBrainOrgID:          getEnv("FB_BRAIN_ORG_ID", ""),
+
+		// Platform event backbone (opt-in; empty URL = disabled no-op)
+		EventsURL: getEnv("APPWRITE_EVENTS_URL", ""),
+		EventsKey: getEnv("APPWRITE_EVENTS_KEY", ""),
+		EventsOrg: getEnv("APPWRITE_ORG", ""),
 	}
 
 	// F-05: Startup validation — fail fast if Brain is enabled but missing required config

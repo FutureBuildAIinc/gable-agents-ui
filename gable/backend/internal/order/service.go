@@ -15,6 +15,7 @@ import (
 	"github.com/gablelbm/gable/internal/invoice"
 	"github.com/gablelbm/gable/internal/purchase_order"
 	"github.com/gablelbm/gable/pkg/audit"
+	"github.com/gablelbm/gable/pkg/eventpub"
 	"github.com/gablelbm/gable/pkg/database"
 	"github.com/google/uuid"
 )
@@ -45,6 +46,7 @@ type Service struct {
 	auditLog          *audit.Logger
 	exposureGate      ExposureGate
 	exposureOverrider ExposureOverrider
+	events            eventpub.Publisher
 }
 
 func NewService(repo Repository, inventorySvc *inventory.Service, invoiceSvc *invoice.Service, customerSvc *customer.Service, poSvc *purchase_order.Service, db ...*database.DB) *Service {
@@ -161,6 +163,12 @@ func (s *Service) CreateOrder(ctx context.Context, req CreateOrderRequest) (*Ord
 	return o, nil
 }
 
+// WithEvents sets the platform event publisher (no-op when unset) and returns the service for chaining.
+func (s *Service) WithEvents(p eventpub.Publisher) *Service {
+	s.events = p
+	return s
+}
+
 func (s *Service) ConfirmOrder(ctx context.Context, id uuid.UUID) error {
 	// 1. Get Order
 	o, err := s.repo.GetOrder(ctx, id)
@@ -232,6 +240,16 @@ func (s *Service) ConfirmOrder(ctx context.Context, id uuid.UUID) error {
 		if err := txFn(ctx); err != nil {
 			return err
 		}
+	}
+
+	// Platform event (at-most-once, after commit — gable-agents-ui ADR 0001)
+	if s.events != nil {
+		s.events.Publish("order.confirmed", eventpub.EntityRef{Kind: "order", ID: id.String()},
+			eventpub.WithBranch(o.BranchID.String()), eventpub.WithData(map[string]any{
+				"customer_id":  o.CustomerID.String(),
+				"total_cents":  o.TotalAmount,
+				"line_count":   len(o.Lines),
+			}))
 	}
 
 	// Audit log: order confirmed (non-transactional, after commit)
@@ -341,6 +359,14 @@ func (s *Service) CancelOrder(ctx context.Context, id uuid.UUID, reason string) 
 		if err := txFn(ctx); err != nil {
 			return err
 		}
+	}
+
+	if s.events != nil {
+		s.events.Publish("order.cancelled", eventpub.EntityRef{Kind: "order", ID: id.String()},
+			eventpub.WithBranch(o.BranchID.String()), eventpub.WithData(map[string]any{
+				"customer_id": o.CustomerID.String(),
+				"reason":      reason,
+			}))
 	}
 
 	if s.auditLog != nil {
