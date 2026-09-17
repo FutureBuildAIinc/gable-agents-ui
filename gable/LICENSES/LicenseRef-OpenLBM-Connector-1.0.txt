@@ -1,0 +1,35 @@
+OpenLBM Connector License 1.0
+=====================================================================
+SPDX-License-Identifier: LicenseRef-OpenLBM-Connector-1.0
+Applies to: the Module SDK + generated API client — the neutral plug-in seam.
+
+  Effective. This is a published, in-force version of the OpenLBM Standard.
+
+  Version-pinned. Material licensed under this version stays governed by this
+  text. A later revision of the Standard does not retroactively change terms
+  already accepted, and no licensee is migrated automatically — adopting a new
+  version means changing the SPDX identifiers in your own tree. Changes to
+  these terms as applied to the Gable commons, and to the size thresholds, are
+  subject to the Community Advisory Panel's veto (CHARTER.md §4).
+
+  Canonical text: https://github.com/FutureBuildAIinc/openlbm
+
+  Incorporates the OpenLBM Definitions Core v1.0 by reference (You, Control,
+  Location, Community Member, Large Operator, Production Use, Modification,
+  Distribute, Network-Provide, Corresponding Source, Change Date, Open Target,
+  Steward).
+
+DEED — Take this and build anything, open or closed, and keep your changes if
+you like. It exists so every layer can plug into the commons without dragging
+anyone's license across the boundary. Just keep the notices and play fair on
+patents.
+
+1. GRANT. A worldwide, royalty-free, non-exclusive license to use, modify,
+   distribute, and sublicense this Connector and derivative works, for any
+   purpose including proprietary and commercial use. No copyleft.
+2. PATENT PEACE. Each contributor grants a patent license to their
+   contributions; your patent rights terminate if you sue over the Connector.
+3. NOTICES. Preserve copyright, license, and NOTICE text in copies.
+4. DISCLAIMER. Provided "AS IS", no warranty, no liability, to the extent
+   permitted by law.
+   (Concept lineage: Apache-2.0. Text original.)

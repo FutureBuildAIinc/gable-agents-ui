@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: LicenseRef-OpenLBM-Connector-1.0
+# SPDX-FileCopyrightText: 2026 FutureBuild, Inc. and OpenLBM contributors
+
+# Go build and test output.
+*.test
+*.out
+*.prof
+coverage.html
+/bin/
+/dist/
+
+# go.work belongs to a developer's machine, not to the module. MIGRATION.md
+# tells a host how to write one for local development against an unreleased
+# SDK; committing it here would force that layout on everyone.
+go.work
+go.work.sum
+
+# Editors and OS noise.
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

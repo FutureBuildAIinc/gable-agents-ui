@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.output/
+.generated/
+dist/
+build/
+*.tsbuildinfo
+
+# Local data / databases
+data/
+*.db
+*.sqlite
+pglite/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Go
+backend/gable
+*.test
+coverage.out
+
+# Appwrite function artifacts
+functions/**/dist/

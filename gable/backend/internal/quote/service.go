@@ -1,0 +1,223 @@
+// SPDX-License-Identifier: LicenseRef-OpenLBM-Commons-1.0
+// SPDX-FileCopyrightText: 2026 FutureBuild, Inc. and OpenLBM contributors
+
+package quote
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// AutoPOService is an optional interface for triggering purchase orders from accepted quotes.
+type AutoPOService interface {
+	CreatePOFromSpecialOrderLine(ctx context.Context, productID uuid.UUID, vendorID *uuid.UUID, quantity float64, unitCost float64, linkedSOLineID uuid.UUID) error
+}
+
+type Service struct {
+	repo        Repository
+	poSvc       AutoPOService
+	snapshotSvc SnapshotService
+	logger      *slog.Logger
+}
+
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo, logger: slog.Default()}
+}
+
+// WithAutoPO injects the purchase order service for auto-PO on quote accept.
+func (s *Service) WithAutoPO(poSvc AutoPOService) {
+	s.poSvc = poSvc
+}
+
+// WithSnapshotService injects the pricing exposure snapshot service, fired
+// best-effort when a quote transitions DRAFT → SENT. Optional: nil disables
+// price-protection snapshotting.
+func (s *Service) WithSnapshotService(snapshotSvc SnapshotService) {
+	s.snapshotSvc = snapshotSvc
+}
+
+func (s *Service) CreateQuote(ctx context.Context, q *Quote) error {
+	// 1. Set Defaults
+	if q.State == "" {
+		q.State = QuoteStateDraft
+	}
+	if q.Source == "" {
+		q.Source = "manual"
+	}
+
+	// 2. Normalize delivery, then total. Order matters: freight must be
+	//    cleared for a pickup BEFORE it is rolled into the total.
+	normalizeDeliveryAndTotal(q)
+
+	return s.repo.CreateQuote(ctx, q)
+}
+
+// normalizeDeliveryAndTotal applies the delivery-type default, clears the
+// vehicle and freight on a pickup, and only then recomputes the line totals
+// and the quote total.
+//
+// The clearing has to happen first. Adding freight to the total and zeroing
+// FreightAmount afterwards stored a quote whose freight_amount was 0 while its
+// total_amount still contained the freight: the customer was billed for
+// delivery on an order they were collecting themselves, and the total no
+// longer reconciled with its own components.
+func normalizeDeliveryAndTotal(q *Quote) {
+	if q.DeliveryType == "" {
+		q.DeliveryType = "PICKUP"
+	}
+	if q.DeliveryType == "PICKUP" {
+		q.VehicleID = nil
+		q.FreightAmount = 0
+	}
+
+	var total float64
+	for i := range q.Lines {
+		line := &q.Lines[i]
+		line.LineTotal = line.Quantity * line.UnitPrice
+		total += line.LineTotal
+	}
+	total += q.FreightAmount
+	q.TotalAmount = total
+}
+
+func (s *Service) GetQuote(ctx context.Context, id uuid.UUID) (*Quote, error) {
+	return s.repo.GetQuote(ctx, id)
+}
+
+func (s *Service) ListQuotes(ctx context.Context) ([]Quote, error) {
+	return s.repo.ListQuotes(ctx)
+}
+
+func (s *Service) ListQuotesPaginated(ctx context.Context, limit, offset int) ([]Quote, int, error) {
+	return s.repo.ListQuotesPaginated(ctx, limit, offset)
+}
+
+func (s *Service) UpdateState(ctx context.Context, id uuid.UUID, state QuoteState) error {
+	q, err := s.repo.GetQuote(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Validate state transition
+	if err := validateStateTransition(q.State, state); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	q.State = state
+
+	// Set lifecycle timestamp based on target state
+	switch state {
+	case QuoteStateSent:
+		q.SentAt = &now
+	case QuoteStateAccepted:
+		q.AcceptedAt = &now
+	case QuoteStateRejected:
+		q.RejectedAt = &now
+	}
+
+	if err := s.repo.UpdateQuote(ctx, q); err != nil {
+		return err
+	}
+
+	// Auto-PO: when accepted, trigger POs for special-order items
+	if state == QuoteStateAccepted && s.poSvc != nil {
+		s.triggerAutoPO(ctx, q)
+	}
+
+	// Price-protection: when sent, snapshot index baselines for commodity
+	// lines. Best-effort — a pricing-module failure must never block a send.
+	if state == QuoteStateSent && s.snapshotSvc != nil {
+		if err := s.snapshotSvc.SnapshotQuoteLines(ctx, q.ID); err != nil {
+			s.logger.Warn("exposure snapshot failed for quote",
+				"quote_id", q.ID,
+				"error", err,
+			)
+		} else {
+			s.logger.Info("exposure snapshot written for quote", "quote_id", q.ID)
+		}
+	}
+
+	return nil
+}
+
+// triggerAutoPO creates purchase orders for special-order quote lines.
+// This is fire-and-forget — failures are logged but don't block acceptance.
+func (s *Service) triggerAutoPO(ctx context.Context, q *Quote) {
+	for _, line := range q.Lines {
+		// Only create POs for lines that have a unit cost (special order indicator)
+		if line.UnitCost > 0 {
+			err := s.poSvc.CreatePOFromSpecialOrderLine(
+				ctx, line.ProductID, nil, line.Quantity, line.UnitCost, line.ID,
+			)
+			if err != nil {
+				s.logger.Warn("auto-PO failed for quote line",
+					"quote_id", q.ID,
+					"line_id", line.ID,
+					"product_id", line.ProductID,
+					"error", err,
+				)
+			} else {
+				s.logger.Info("auto-PO created for quote line",
+					"quote_id", q.ID,
+					"line_id", line.ID,
+					"product_id", line.ProductID,
+				)
+			}
+		}
+	}
+}
+
+func (s *Service) UpdateQuote(ctx context.Context, q *Quote) error {
+	existing, err := s.repo.GetQuote(ctx, q.ID)
+	if err != nil {
+		return fmt.Errorf("quote not found: %w", err)
+	}
+	if existing.State != QuoteStateDraft {
+		return fmt.Errorf("only DRAFT quotes can be edited")
+	}
+
+	// Recalculate totals. Same normalization as CreateQuote — an edit that
+	// switches a quote to pickup must drop the freight from the total, and an
+	// edit that omits the delivery type gets the same PICKUP default a create
+	// would, rather than silently keeping freight on an unspecified quote.
+	normalizeDeliveryAndTotal(q)
+	q.State = QuoteStateDraft
+
+	return s.repo.UpdateQuoteWithLines(ctx, q)
+}
+
+func (s *Service) GetAnalytics(ctx context.Context) (*QuoteAnalytics, error) {
+	return s.repo.GetQuoteAnalytics(ctx)
+}
+
+func (s *Service) GetOriginalFile(ctx context.Context, id uuid.UUID) ([]byte, string, string, error) {
+	return s.repo.GetOriginalFile(ctx, id)
+}
+
+// validateStateTransition ensures the state change is valid.
+func validateStateTransition(from, to QuoteState) error {
+	allowed := map[QuoteState][]QuoteState{
+		QuoteStateDraft:    {QuoteStateSent, QuoteStateAccepted, QuoteStateRejected, QuoteStateExpired},
+		QuoteStateSent:     {QuoteStateAccepted, QuoteStateRejected, QuoteStateExpired},
+		QuoteStateAccepted: {},                // terminal
+		QuoteStateRejected: {QuoteStateDraft}, // allow re-opening
+		QuoteStateExpired:  {QuoteStateDraft}, // allow re-opening
+	}
+
+	targets, ok := allowed[from]
+	if !ok {
+		return fmt.Errorf("unknown current state: %s", from)
+	}
+
+	for _, t := range targets {
+		if t == to {
+			return nil
+		}
+	}
+	return fmt.Errorf("cannot transition from %s to %s", from, to)
+}

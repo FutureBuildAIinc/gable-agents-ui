@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: LicenseRef-OpenLBM-Connector-1.0
+# SPDX-FileCopyrightText: 2026 FutureBuild, Inc. and OpenLBM contributors
+
+version = 1
+
+# Machine-readable licensing for the Gable Module SDK, per REUSE 3.3.
+#
+# The rule for this repository is short: EVERY source file is
+# LicenseRef-OpenLBM-Connector-1.0, and every source file says so in its own
+# header. That is the point of the repo — this is the connector seam, and a
+# third party must be able to read any file and see immediately that plugging
+# into it drags no copyleft across the boundary.
+#
+# So this file is deliberately small. It covers only the two cases a header
+# cannot: a file with no comment syntax, and the agent kit under .claude/.
+#
+# ORDER MATTERS: when a path matches more than one [[annotations]] block, the
+# LAST matching block wins.
+
+# ---------------------------------------------------------------------------
+# Files that cannot carry a comment.
+# ---------------------------------------------------------------------------
+# VERSION holds a bare semver string and nothing else; a comment would have to
+# be parsed around by every consumer. Connector-licensed like the rest of the
+# tree.
+[[annotations]]
+path = "VERSION"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Connector-1.0"
+
+# ---------------------------------------------------------------------------
+# The Claude agent kit.
+# ---------------------------------------------------------------------------
+# .claude/ is contributor tooling — slash commands and skills that help a
+# newcomer navigate this repo. It is prose about the code rather than the code
+# itself, so it carries the OpenLBM Documentation License, and each file says
+# so in its own front-matter header. This block restates that, and does so with
+# precedence = "override" for one specific reason:
+#
+#   Some of those files DOCUMENT the SPDX convention, which means they contain
+#   lines and shell snippets that quote `SPDX-License-Identifier:`. REUSE
+#   scrapes those quotations as if they were the file's own tag and then
+#   reports them as unparseable expressions. The finding is an artifact of
+#   documenting licensing, not a licensing defect.
+#
+# "override" makes this declaration authoritative for .claude/** and stops
+# REUSE reading tags out of the prose. It is identical to what those files'
+# headers already say, so nothing is relicensed by being written here — see
+# `git log` on .claude/ and the headers themselves. The alternative, bracketing
+# every code sample with REUSE-IgnoreStart/End markers, would put licensing
+# scaffolding inside documents whose whole job is to be readable.
+[[annotations]]
+path = ".claude/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Docs-1.0"

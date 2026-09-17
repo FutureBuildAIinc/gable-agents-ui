@@ -1,0 +1,221 @@
+# SPDX-License-Identifier: LicenseRef-OpenLBM-Connector-1.0
+# SPDX-FileCopyrightText: 2026 FutureBuild, Inc. and OpenLBM contributors
+
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned. Anything installed with @latest in CI makes the build
+  # non-deterministic, which is the opposite of what a gate is for.
+  GO_VERSION: "1.25"
+  REUSE_VERSION: "6.2.0"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build, vet, and the race-detector test run. This is the merge gate.
+  # ---------------------------------------------------------------------------
+  go:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          # There is no go.sum to key a cache on — see the dependencies job.
+          cache: false
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would reformat these files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      # -race is not optional here. The package documents Registry and every
+      # conforming Store as safe for concurrent use — the registry calls
+      # Store.Records from request goroutines whenever its cache expires — so a
+      # data race is a real defect, not a test artefact.
+      #
+      # Coverage is collected in the same run rather than a second one.
+      # -covermode=atomic is required by -race.
+      - name: Test (race + coverage)
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      # REPORTING ONLY — there is deliberately no coverage threshold. A gate
+      # that fails a PR for moving a number blocks contributions rather than
+      # improving them. If one is ever introduced it should ratchet up from the
+      # measured baseline, not be imposed as a round number.
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ ! -f coverage.out ]; then
+            echo "No coverage profile was produced (the test step did not complete)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          go tool cover -func=coverage.out > coverage-func.txt
+          total="$(awk '/^total:/ {print $NF}' coverage-func.txt)"
+          {
+            echo "## Coverage"
+            echo ""
+            echo "**Total: ${total:-unknown}** — reporting only, no threshold is enforced."
+            echo ""
+            echo "<details><summary>Per-function</summary>"
+            echo ""
+            echo '```'
+            cat coverage-func.txt
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # The zero-dependency gate. This module is the connector seam: it is
+  # permissively licensed so a third party can plug an app into a copyleft host
+  # without a licence crossing the boundary, and it keeps that promise by
+  # depending on nothing but the standard library. Every dependency added here
+  # would be inherited by every host and every app in the ecosystem.
+  #
+  # This is a merge gate, not advice.
+  # ---------------------------------------------------------------------------
+  dependencies:
+    name: Zero dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: go.mod declares no requirements
+        run: |
+          if grep -qE '^\s*require' go.mod; then
+            echo "::error::go.mod has a require block. Adding a dependency to the SDK is a licensing decision — open an issue first."
+            grep -nE '^\s*require' -A20 go.mod
+            exit 1
+          fi
+
+      - name: No go.sum
+        run: |
+          if [ -s go.sum ]; then
+            echo "::error::go.sum is present and non-empty, so something was vendored in."
+            exit 1
+          fi
+
+      - name: The module graph is one line
+        run: |
+          count="$(go list -m all | wc -l)"
+          echo "go list -m all -> $count module(s)"
+          if [ "$count" -ne 1 ]; then
+            go list -m all
+            echo "::error::expected exactly 1 module in the graph, got $count"
+            exit 1
+          fi
+
+      # go list -deps prints every package the build needs. Standard library
+      # packages have no dot in their path; anything with one is external.
+      #
+      # The `^vendor/` exclusion is NOT a loophole. Since Go 1.14 the standard
+      # library vendors a handful of golang.org/x packages *inside the
+      # toolchain* — net/http alone pulls in vendor/golang.org/x/net/idna,
+      # vendor/golang.org/x/net/http2/hpack and friends, and crypto/tls pulls
+      # vendor/golang.org/x/crypto/chacha20poly1305. They ship with the Go
+      # distribution, are not modules, never appear in `go list -m all`, and
+      # cannot be avoided by any package that imports net/http. Their paths
+      # contain a dot, so without this filter the gate fails on every commit —
+      # which it did. They are stdlib; the `vendor/` prefix is the toolchain's
+      # own namespace and cannot be produced by a third-party import.
+      - name: Every import is stdlib or this module
+        run: |
+          external="$(go list -deps ./... | grep -v '^github.com/FutureBuildAIinc/gable-sdk' | grep -v '^vendor/' | grep '\.' || true)"
+          if [ -n "$external" ]; then
+            echo "::error::non-stdlib packages in the build graph:"
+            echo "$external"
+            exit 1
+          fi
+          echo "Clean: stdlib only."
+
+      # The SDK depends on abstractions, never on a host. A port in
+      # apps/ports.go is how a host capability gets in.
+      - name: The SDK does not import a host
+        run: |
+          hits="$(grep -rn 'gablelbm/gable\|FutureBuildAIinc/gable"' --include='*.go' . || true)"
+          if [ -n "$hits" ]; then
+            echo "::error::the SDK imports a host:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "Clean: no host imports."
+
+  # ---------------------------------------------------------------------------
+  # REUSE licensing gate. Every file in this repository must carry copyright
+  # and licensing information, and every licence it names must have a text in
+  # LICENSES/.
+  # ---------------------------------------------------------------------------
+  license:
+    name: License (REUSE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install reuse
+        run: pipx install "reuse==${REUSE_VERSION}"
+
+      # Advisory: the full human-readable report, so a failure is diagnosable
+      # from the log without re-running anything locally.
+      - name: reuse lint (report)
+        run: reuse lint || true
+
+      # The gate. See .github/scripts/reuse_gate.py for which findings are
+      # hard failures and why the one exception exists.
+      - name: REUSE gate
+        run: python3 .github/scripts/reuse_gate.py
+
+  # ---------------------------------------------------------------------------
+  # A single required check for branch protection, so the protection rule does
+  # not have to be edited every time a job is added.
+  # ---------------------------------------------------------------------------
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [go, dependencies, license]
+    steps:
+      - name: Gate
+        run: |
+          echo "go:           ${{ needs.go.result }}"
+          echo "dependencies: ${{ needs.dependencies.result }}"
+          echo "license:      ${{ needs.license.result }}"
+          if [ "${{ needs.go.result }}" != "success" ] \
+            || [ "${{ needs.dependencies.result }}" != "success" ] \
+            || [ "${{ needs.license.result }}" != "success" ]; then
+            echo "::error::a required job did not succeed"
+            exit 1
+          fi

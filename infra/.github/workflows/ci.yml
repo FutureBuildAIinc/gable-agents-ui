@@ -1,0 +1,36 @@
+name: ci
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Dash and date check over changed Markdown
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] \
+             && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "comparing against $BASE_SHA"
+            mapfile -t files < <(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" HEAD -- '*.md' '*.markdown')
+          else
+            echo "no usable base commit, checking every tracked Markdown file"
+            mapfile -t files < <(git ls-files '*.md' '*.markdown')
+          fi
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no Markdown changed"
+            exit 0
+          fi
+          printf 'checking %s\n' "${files[@]}"
+          bash scripts/check-dashes-and-dates.sh "${files[@]}"

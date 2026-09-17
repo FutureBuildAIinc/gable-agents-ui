@@ -1,0 +1,115 @@
+version = 1
+
+# GableLBM / OpenLBM per-component licensing.
+# This file mirrors LICENSE-MAP.md in the REUSE 3.x machine-readable form.
+#
+# ORDER MATTERS: when a path matches more than one [[annotations]] block, the
+# LAST matching block wins for that file. The backend/pkg/apps carve-out below
+# therefore MUST follow the broader backend/pkg entry so apps -> Connector while
+# the rest of backend/pkg -> Commons.
+
+[[annotations]]
+path = [
+  "backend/internal/**",
+  "backend/pkg/**",
+  "backend/cmd/**",
+  "backend/migrations/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Commons-1.0"
+
+# Connector seam: carved out of the backend/pkg Commons default above.
+[[annotations]]
+path = "backend/pkg/apps/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Connector-1.0"
+
+# Surfaces & native client apps.
+[[annotations]]
+path = "app/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Surface-1.0"
+
+# Documentation, specs, guides.
+[[annotations]]
+path = "docs/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Docs-1.0"
+
+# ---------------------------------------------------------------------------
+# Coverage for the rest of the tree
+# ---------------------------------------------------------------------------
+# LICENSE-MAP.md scopes only the four source components above. Everything else
+# in the repo (build manifests, meta docs, CI config) still has to carry
+# licensing information for `reuse lint` — and therefore for the license job in
+# .github/workflows/ci.yml — to pass. The choices below follow the map's
+# spirit: build/config that ships alongside Commons code is Commons; prose,
+# meta, and repo plumbing is Docs.
+
+# Backend build manifests and one-off developer scripts. These sit next to (and
+# describe) Commons-licensed code, so they take the Commons license. Note
+# backend/scripts/ is NOT under the backend/{internal,pkg,cmd,migrations}
+# prefixes enumerated in LICENSE-MAP.md, hence the explicit entry.
+[[annotations]]
+path = [
+  "backend/go.mod",
+  "backend/go.sum",
+  "backend/Dockerfile",
+  "backend/scripts/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Commons-1.0"
+
+# Root-level prose and project meta. Docs license — these are documents, not
+# code, and the Docs license is the most permissive fit in the map.
+# LICENSE, LICENSE-MAP.md and REUSE.toml itself are skipped by `reuse lint`
+# (REUSE spec: license files and the config file need no annotation), so they
+# are deliberately absent here.
+#
+# `*.md` matches root-level markdown ONLY — a single `*` does not cross a `/`,
+# so docs/, app/ and backend/ keep their own licenses. Using the glob rather
+# than a list of filenames means a new top-level document (a changelog, another
+# contributor guide) is covered the day it lands instead of the day someone
+# remembers to add it here.
+[[annotations]]
+path = [
+  "*.md",
+  "NOTICE",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Docs-1.0"
+
+# Repo plumbing: CI/CD, issue & PR templates, CODEOWNERS, dependabot, ignore
+# files, container orchestration and DigitalOcean app specs. Same reasoning as
+# the meta docs above — configuration, not a licensed software component.
+[[annotations]]
+path = [
+  ".github/**",
+  ".do/**",
+  ".claude/**",
+  ".gitignore",
+  ".dockerignore",
+  "docker-compose.yml",
+  "Makefile",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 FutureBuild, Inc. and OpenLBM contributors"
+SPDX-License-Identifier = "LicenseRef-OpenLBM-Docs-1.0"
+
+# No brand-asset annotation here on purpose. This repository ships no logo or
+# wordmark files: the marks live in the separate `brand` repository alongside
+# TRADEMARK-POLICY.md and USAGE.md, which are the documents that actually
+# govern their use. The app's own logo is drawn inline
+# (app/src/components/ui/brand-logo.ts, app/public/favicon.svg) and is covered
+# by the app/ Surface annotation above.
+#
+# LICENSES/LicenseRef-OpenLBM-Trademark.txt stays: it is the brand-use policy
+# the project is bound by, and — as LICENSE-MAP.md's "Also in LICENSES/"
+# section already states — it is referenced by the project without being
+# directory-scoped. The REUSE gate tolerates a license text that no file uses.

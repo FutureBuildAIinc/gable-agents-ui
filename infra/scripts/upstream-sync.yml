@@ -1,0 +1,29 @@
+name: upstream-sync
+on:
+  schedule: [{ cron: "17 5 * * *" }]
+  workflow_dispatch: {}
+permissions: { contents: write, issues: write }
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Track upstream
+        run: |
+          git remote add upstream "${{ vars.UPSTREAM_URL }}"
+          git fetch upstream --tags --prune
+          git push origin "refs/remotes/upstream/${{ vars.UPSTREAM_BRANCH }}:refs/heads/upstream" --force
+          git push origin --tags
+      - name: Detect a newer upstream release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          PINNED=$(git show origin/main:PINNED_TAG)
+          LATEST=$(gh release list --repo "${{ vars.UPSTREAM_REPO }}" --limit 1 --json tagName -q '.[0].tagName')
+          if [ -n "$LATEST" ] && [ "$LATEST" != "$PINNED" ]; then
+            if ! gh issue list --label upstream-release --search "$LATEST in:title" --json number -q '.[0]' | grep -q .; then
+              NOTES=$(gh release view "$LATEST" --repo "${{ vars.UPSTREAM_REPO }}" --json body -q .body)
+              gh issue create --title "Upstream release $LATEST (pinned: $PINNED)" \
+                --label upstream-release --body "$NOTES"
+            fi
+          fi
