@@ -1,6 +1,9 @@
+import { useSendToAgentChat } from "@agent-native/core/client/agent-chat";
 import { useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
+
+import { useScreenTracking } from "@/lib/screen-tracking";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +48,12 @@ export default function QuoteDetailRoute() {
     onSuccess: () => toast.success("Quote accepted — order created in gable."),
     onError: (e) => toast.error(`Convert failed: ${String(e)}`),
   });
+  const { send, isGenerating } = useSendToAgentChat();
+  useScreenTracking("quote-detail", {
+    kind: "quote",
+    id: quoteId,
+    label: quote?.quote_number ?? quote?.customer_name,
+  });
 
   if (error) {
     return (
@@ -70,16 +79,31 @@ export default function QuoteDetailRoute() {
           </h1>
           <p className="text-muted-foreground text-sm">{quote?.customer_name}</p>
         </div>
-        <Button
-          disabled={isLoading || accept.isPending || quote?.status === "converted"}
-          onClick={() => {
-            if (window.confirm("Accept this quote and convert it to a sales order in gable?")) {
-              accept.mutate({ quoteId });
-            }
-          }}
-        >
-          {quote?.status === "converted" ? "Converted" : "Accept & convert to order"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={isGenerating}
+            onClick={() => {
+              send({
+                message: `Work quote ${quote?.quote_number ?? quoteId.slice(0, 8)} for ${quote?.customer_name ?? "this customer"}: review the lines and margins on screen, then tell me what you'd adjust before we accept.`,
+                submit: true,
+              });
+              toast.info("Handed to the agent — it can see this quote via view-screen.");
+            }}
+          >
+            {isGenerating ? "Agent working…" : "Ask agent to work this quote"}
+          </Button>
+          <Button
+            disabled={isLoading || accept.isPending || quote?.status === "converted"}
+            onClick={() => {
+              if (window.confirm("Accept this quote and convert it to a sales order in gable?")) {
+                accept.mutate({ quoteId });
+              }
+            }}
+          >
+            {quote?.status === "converted" ? "Converted" : "Accept & convert to order"}
+          </Button>
+        </div>
       </div>
 
       <Card>

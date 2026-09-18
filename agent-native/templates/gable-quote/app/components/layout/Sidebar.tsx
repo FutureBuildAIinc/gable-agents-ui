@@ -15,12 +15,14 @@ import {
 } from "@agent-native/toolkit/chat-history/ChatHistoryList";
 import {
   IconApps,
+  IconClipboardList,
   IconClock,
   IconEdit,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconLoader2,
   IconMessages,
+  IconPackage,
   IconPin,
   IconSearch,
 } from "@tabler/icons-react";
@@ -406,7 +408,30 @@ function ChatThreadsSection({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="px-2 pb-3">{newChatButton}</div>
+      <div className="px-2 pb-2">{newChatButton}</div>
+      <div className="px-2 pb-3">
+        <p className="text-muted-foreground/70 px-3 pb-1 text-[11px] font-medium uppercase tracking-wide">
+          Workspace
+        </p>
+        {[
+          { to: "/home", label: "Home", icon: IconLayoutSidebarLeftExpand },
+          { to: "/quotes/new", label: "New Quote", icon: IconEdit },
+          { to: "/quotes", label: "Quotes", icon: IconClipboardList },
+          { to: "/products", label: "Products", icon: IconPackage },
+        ].map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-sidebar-accent",
+              location.pathname === item.to && "bg-sidebar-accent",
+            )}
+          >
+            <item.icon className="size-4 shrink-0" strokeWidth={1.8} />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        ))}
+      </div>
       <ChatHistoryList
         sections={historySections}
         activeId={displayedActiveThreadId}

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useScreenTracking } from "@/lib/screen-tracking";
 
 interface QuoteSummary {
   id: string;
@@ -23,6 +24,7 @@ export function meta() {
 }
 
 export default function QuotesIndex() {
+  useScreenTracking("quotes");
   const { data: quotes, isLoading, error } = useActionQuery<QuoteSummary[]>("list-quotes", {
     limit: 50,
   });
