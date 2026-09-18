@@ -2,29 +2,19 @@ import { markAgentChatHomeHandoff } from "@agent-native/core/client/agentkit-cha
 import { appPath } from "@agent-native/core/client/api-path";
 import { useEffect, useRef, useState } from "react";
 
-import { APP_TITLE } from "@/lib/app-config";
 import { getChatHomeThreadId } from "@/lib/chat-home-thread";
-
-const SEO_TITLE = `${APP_TITLE} - Open Source AI app starter with actions`;
-const SEO_DESCRIPTION =
-  "Open Source starter for agent-native apps with durable chat, shared actions, UI state, tools, and a backend your agent can extend.";
+import { openArtifact } from "@/lib/artifact";
 
 export function meta() {
-  return [
-    { title: SEO_TITLE },
-    {
-      name: "description",
-      content: SEO_DESCRIPTION,
-    },
-    { property: "og:title", content: SEO_TITLE },
-    { property: "og:description", content: SEO_DESCRIPTION },
-    { name: "twitter:card", content: "summary" },
-    { name: "twitter:title", content: SEO_TITLE },
-    { name: "twitter:description", content: SEO_DESCRIPTION },
-  ];
+  return [{ title: "Gable Quotes" }];
 }
 
-export default function ChatRoute() {
+/**
+ * Chat is front and center. The workbench opens in the artifact pane (or a
+ * detached window); the launcher tile below offers the fastest pointer into
+ * the quote builder.
+ */
+export default function ChatHome() {
   const [threadId] = useState(getChatHomeThreadId);
   const handoffStartedRef = useRef(false);
 
@@ -40,5 +30,15 @@ export default function ChatRoute() {
     }
   }, [threadId]);
 
-  return null;
+  return (
+    <div className="flex h-full items-center justify-center">
+      <button
+        type="button"
+        className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-medium"
+        onClick={() => openArtifact("/quotes/new", "New Quote")}
+      >
+        New Quote →
+      </button>
+    </div>
+  );
 }
