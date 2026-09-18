@@ -99,3 +99,18 @@ etc.) per `agent-native` docs.
   live JWKS URL yet; micro-UIs fall back to `AUTH_DISABLED`/Better Auth in dev.
 - The session Appwrite key is broad; mint documents-write-only (gable) and
   documents-read-only (micro-UIs) keys when convenient.
+
+## Local stack (2026-09-18, the active mode after the Coolify blockers)
+
+- gable backend: `:8090` (AUTH_MODE=dev, integration key in /tmp/gable-int-key)
+- gable-quote dev: **`:4311`** (4310 kept getting raced by a stale vite supervisor — use 4311)
+- **Realistic seed applied** (`DEMO_SEED=1 [DEMO_DISPATCH_DATE=$(date -u +%F)] go run ./cmd/seed`
+  from `gable/backend`): 68 real LBM SKUs (framing/PT/OSB-plywood/drywall/doors/roofing/
+  insulation/fasteners/hangers/millwork/cornice), 49 customers, 20 quotes across all states
+  (10 stale >10d), 77 orders incl. 14 CONFIRMED scheduled for today (dispatch board),
+  44 invoices (22 PAID / 12 UNPAID / 10 OVERDUE for AR aging), 15 routes / 45+ deliveries,
+  stock across 3 branches. Stale placeholder SKUs (`SPECIAL-%`) purged post-seed.
+- Q2 fixture: `docs/fixtures/material-list-takeoff.csv` (exact-SKU + name-only matches +
+  a sqft→sheets conversion + 3 deliberate unmatched lines).
+- Known gap: no ON_HOLD order fixture (R4 credit-hold flow) — create one by booking an
+  order for the near-limit customer through the real service path when needed.

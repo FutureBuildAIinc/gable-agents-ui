@@ -1,0 +1,23 @@
+# Material List — Ridgeview Duplex, Unit B (takeoff)
+# Fixture for the Q2 agent-driven quote flow (docs/ux/module-flows.md §1).
+# Contains a mix of: exact SKU matches, name-only matches the agent must find
+# via list-products, a unit-conversion case (sqft → sheets), and three
+# deliberately unmatched lines the agent must surface as "needs you".
+
+Item,Qty,Unit,Notes
+2x4x8 SPF Premium,420,PCS,plates and studs
+LUM-248-PREM,96,PCS,walls
+7/16 OSB sheathing,2400,SQFT,sub-sheathing — convert to sheets
+1/2 Plywood G1S,24,PCS,floor deck
+5/8 Drywall Firecode,52,PCS,garage separation
+R-20 batts,28,BAG,
+3" Deck Screws,6,BOX,
+Joist Hanger 2x10,48,PCS,
+Hurricane Tie H1,120,PCS,
+Simpson LUS28,24,PCS,
+Architectural shingles weathered wood,34,BUNDLE,roof
+Ice & Water Shield,4,RL,
+Trim coil 24" white,3,RL,UNMATCHED — special order?
+Ridge vent aluminum 4ft,12,PCS,
+Stainless ring-shank siding nails 2",1,BOX,UNMATCHED — vendor?
+Tyvek Commercial Wrap 9x100,2,RL,UNMATCHED — check with purchasing
