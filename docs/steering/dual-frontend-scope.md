@@ -28,9 +28,12 @@ a link into the correct routed page of the other running frontend service.
    service 2+ agent-native micro-UIs at `agents.<org>…`. Both behind the
    existing Traefik wildcard. One auth front door per ADR-0002 (both trust
    the Appwrite issuer) so cross-app links are SSO-seamless.
-4. **Launcher tiles (optional, config-only)** — register both apps in the
+4. **Launcher tiles (config-only)** — register both apps in the
    fb-cloud-launcher workload index per the infra runbook pattern; platform
-   discovery without in-app coupling.
+   discovery without in-app coupling. ADDITION (2026-09-18): this app's own
+   `/launch` also shows a "Classic Gable ERP" tile — an external link to
+   `classic-link(entity="home")`, the same link-bridge class as any other
+   classic-link; no embedding or shared chrome.
 
 ## Out of scope
 

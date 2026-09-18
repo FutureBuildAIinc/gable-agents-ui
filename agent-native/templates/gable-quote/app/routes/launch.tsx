@@ -1,20 +1,24 @@
+import { useActionQuery } from "@agent-native/core/client/hooks";
 import {
   IconClipboardList,
+  IconExternalLink,
   IconPackage,
   IconPlus,
 } from "@tabler/icons-react";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { useScreenTracking } from "@/lib/screen-tracking";
 import { openArtifact } from "@/lib/artifact";
+import { useScreenTracking } from "@/lib/screen-tracking";
 
 export function meta() {
   return [{ title: "Launcher — Gable Quotes" }];
 }
 
 /**
- * The artifact pane's default content. Buttons open other screens in the same
- * pane (or a new detached window via the pane header's detach button).
+ * The dual-app launcher (docs/steering/dual-frontend-scope.md): this app's
+ * agent-driven workspaces AND the classic gable ERP desk as a first-class
+ * tile. The classic app is a separate frontend — the tile is just a link
+ * (same bridge as classic-link); no embedding, no shared chrome.
  */
 
 const ACTIONS = [
@@ -43,6 +47,11 @@ const ACTIONS = [
 
 export default function Launcher() {
   useScreenTracking("launcher");
+  // entity="home" → the classic app root; errors (unset base) simply hide the tile.
+  const { data: classic } = useActionQuery<{ url: string }>("classic-link", {
+    entity: "home",
+  });
+
   return (
     <div className="p-5">
       <h1 className="text-lg font-semibold">Workbench</h1>
@@ -66,6 +75,31 @@ export default function Launcher() {
           </button>
         ))}
       </div>
+
+      {classic?.url && (
+        <>
+          <h2 className="mt-6 text-sm font-semibold">Also on this backend</h2>
+          <div className="mt-2">
+            <a href={classic.url} target="_blank" rel="noreferrer" className="block">
+              <Card className="border-dashed transition-shadow hover:shadow-md">
+                <CardContent className="flex items-start gap-3">
+                  <IconExternalLink className="text-muted-foreground mt-0.5" size={22} stroke={1.5} />
+                  <div>
+                    <div className="text-sm font-medium">Classic Gable ERP</div>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      The full desk — orders, AR, inventory, dispatch, everything. Opens in
+                      its own tab; you're already signed in (same front door).
+                    </p>
+                    <p className="text-muted-foreground/70 mt-1 text-[11px] italic">
+                      Separate app, one backend — links bridge them
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </a>
+          </div>
+        </>
+      )}
     </div>
   );
 }
