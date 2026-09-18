@@ -1,0 +1,65 @@
+# gable-quote production image — SELF-CONTAINED for Coolify dockerfile-type
+# deployment (this Coolify build never clones git_repository for dockerfile
+# build_pack; the inline Dockerfile IS the whole build context). So we clone
+# the repo inside the build.
+#
+# Runtime env (all optional where noted):
+#   PORT (default 3000)
+#   APP_URL (public origin, e.g. https://quotes.experiments.futurebuild.ai)
+#   BETTER_AUTH_SECRET (required)
+#   DATABASE_URL (REQUIRED in deployment — PGlite is a devDep not bundled)
+#   GABLE_API_BASE_URL, GABLE_INTEGRATION_KEY (or GABLE_SERVICE_TOKEN)
+#   APPWRITE_JWKS_URL, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID
+#   APPWRITE_EVENTS_READ_KEY (events consumer plugin, optional)
+#   CLASSIC_UI_BASE_URL (classic ERP tile, optional)
+
+ARG REPO_URL=https://github.com/FutureBuildAIinc/gable-agents-ui.git
+ARG REPO_BRANCH=main
+
+FROM node:22-bookworm-slim AS build
+ARG REPO_URL
+ARG REPO_BRANCH
+WORKDIR /app
+
+# Deterministic toolchain + git for the in-build clone
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@10.29.1 --activate
+
+# Clone the monorepo (shallow) — the app lives under agent-native/
+RUN git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" src
+WORKDIR /app/src/agent-native
+
+# Manifests are present (from the clone) — install workspace deps
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Build workspace packages in dependency order (core's dist imports toolkit's
+# design-system, so toolkit must build first; devDeps required for tsc/tsx so
+# NODE_ENV stays unset here), then the production app bundle.
+RUN pnpm --filter @agent-native/agentkit --filter @agent-native/shared-app-config \
+      --filter @agent-native/toolkit --filter @agent-native/core run build
+ENV NODE_ENV=production
+RUN pnpm --filter gable-quote build
+
+# Production stage: node output only
+FROM node:22-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY --from=build /app/src/agent-native/templates/gable-quote/.output .output
+
+RUN mkdir -p /app/data && chown node:node /app/data
+USER node
+VOLUME ["/app/data"]
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/_agent-native/ping').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", ".output/server/index.mjs"]
+
+# NOTE: DATABASE_URL is REQUIRED in deployment — PGlite is a devDependency and
+# not bundled in this production image. Point it at the platform Postgres
+# (e.g. postgresql://gable_agents:...@<pg-host>:5432/gable_quote) per
+# docs/runbook-live.md and platform/dual-frontend-deploy.md.
