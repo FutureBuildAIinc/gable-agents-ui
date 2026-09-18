@@ -56,6 +56,10 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "openai/gpt-5.6-luna": 1_050_000,
   "google/gemini-2.5-flash": 1_048_576,
   "z-ai/glm-5.2": 1_048_576,
+  // Moonshot / Kimi via OpenRouter (K2 family is tool-capable)
+  "moonshotai/kimi-k2.5": 262_144,
+  "moonshotai/kimi-k2-0905-preview": 262_144,
+  "moonshotai/kimi-dev-72b": 131_072,
 
   // ── AI-SDK native OpenAI IDs ──────────────────────────────────────────────
   "gpt-5.6-sol": 1_050_000,
@@ -315,6 +319,10 @@ export const AGENT_MODEL_CONFIG = {
         "meta/muse-spark-1.3",
         "inception/mercury-2.5",
         "z-ai/glm-5.2",
+        // Moonshot / Kimi (K2 — tool-capable, strong for ERP agent loops)
+        "moonshotai/kimi-k2.5",
+        "moonshotai/kimi-k2-0905-preview",
+        "moonshotai/kimi-dev-72b",
       ],
     },
     google: {
