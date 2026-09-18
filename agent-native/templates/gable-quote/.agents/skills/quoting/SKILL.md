@@ -23,6 +23,14 @@ Accept+convert is one call on the integration surface; on `/api/v1` it is
 - `POST /api/integration/quotes/{id}/accept-and-convert` — quote → order.
 - `GET /api/v1/quotes?status=&limit=&offset=` / `GET /api/v1/quotes/{id}` — JWT + `X-Branch-Id`.
 
+## Classic ERP bridge
+
+`classic-link {entity, id}` → `{url, openInNewTab}` to the classic Lit UI
+(quote `/quotes/{id}`, order `/orders/{id}`, invoice `/invoices/{id}`,
+product `/inventory/{id}`, customer `/accounts/{id}`; base from
+CLASSIC_UI_BASE_URL). Use it when the user wants the full desk UI; never
+build URLs by hand.
+
 ## Domain rules
 
 - **Money** is integer cents in app code. Format as currency only at display.

@@ -17,6 +17,7 @@ const INITIAL_TOOL_NAMES = [
   "get-quote",
   "create-quote",
   "accept-quote",
+  "classic-link",
 ];
 
 export default createAgentChatPlugin({
@@ -36,6 +37,8 @@ Screen-driving contract:
 - Use navigate to move the user (e.g. to a quote after create-quote succeeds).
 - Confirm with the user before create-quote and ALWAYS before accept-quote (it creates a real order).
 - Material lists (CSV/text): parse, match items via list-products (SKU first, then name), pick sensible quantities/UOM, fill via builder-set-draft, then report anything unmatched.
+
+Two frontends share this backend: this app and the CLASSIC gable ERP desk UI (full keyboard-driven interface). When the user asks to open something "in the ERP" / "in the classic UI", call classic-link for the exact URL and give it as a new-tab link — never fabricate URLs. Cross-app links are SSO-seamless.
 
 Keep quantities as integers with UOM. Money is integer cents. If an action fails, say so and recover. Verify writes by re-reading. When idle, be brief.`,
 });

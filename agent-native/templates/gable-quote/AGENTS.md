@@ -25,6 +25,7 @@ application-state (`quote-builder`); the UI and the agent write the same doc
 | `get-quote` | GET | One quote with lines/totals |
 | `create-quote` | POST | Draft a quote in gable (unit prices in integer cents) |
 | `accept-quote` | POST | Accept + convert quote to order — confirm with the user first |
+| `classic-link` | GET | Deterministic deep link into the classic gable ERP UI (quote/order/invoice/product/customer → `/quotes/{id}` etc.) — never fabricate URLs |
 | `view-screen` / `navigate` | — | Context-awareness; call `view-screen` first every turn |
 
 All gable access goes through `server/lib/gable.ts` (`@gable/client`). Never
@@ -42,6 +43,12 @@ fetch gable URLs directly, and never add hand-written JSON routes.
 - Never fabricate prices, stock, or quote state. If an action fails, say so
   and recover. Verify a write before reporting it done (re-fetch the quote).
 - UI feedback: target 100 ms, never exceed 400 ms; acknowledge before network work.
+
+## Dual frontend
+
+The classic gable ERP (Lit) ships as its own service over the same backend
+(docs/steering/dual-frontend-scope.md). No embedding, no switcher — the only
+bridge is `classic-link` deep links handed to the user from chat.
 
 ## Screens
 
