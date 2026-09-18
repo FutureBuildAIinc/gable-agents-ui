@@ -1072,6 +1072,20 @@ function getAssistantUiAliases(
   try {
     const assistantUiRequire = getAssistantUiRequire(cwd);
     if (!assistantUiRequire) return [];
+    // assistantUiRequire resolved @assistant-ui/react already. The sub-
+    // packages (core/store/tap/assistant-stream) are OPTIONAL PEERS of it,
+    // and pnpm's auto-install-peers makes their location hoist-dependent —
+    // createRequire(reactEntry) may NOT see them (dist/CLI context, dedupe
+    // install). Resolve each from the @assistant-ui/react package.json, which
+    // is always a direct ancestor of the peers pnpm materializes.
+    let assistantUiPkgRequire: NodeJS.Require;
+    try {
+      assistantUiPkgRequire = createRequire(
+        assistantUiRequire.resolve("@assistant-ui/react/package.json"),
+      );
+    } catch {
+      assistantUiPkgRequire = assistantUiRequire;
+    }
     return [
       // A linked framework checkout can otherwise resolve the assistant-ui
       // imports in core's source graph from the checkout's React 19.2.7 peer
@@ -1084,23 +1098,23 @@ function getAssistantUiAliases(
       },
       {
         find: /^@assistant-ui\/core$/,
-        replacement: assistantUiRequire.resolve("@assistant-ui/core"),
+        replacement: assistantUiPkgRequire.resolve("@assistant-ui/core"),
       },
       {
         find: /^@assistant-ui\/store$/,
-        replacement: assistantUiRequire.resolve("@assistant-ui/store"),
+        replacement: assistantUiPkgRequire.resolve("@assistant-ui/store"),
       },
       {
         find: /^@assistant-ui\/tap$/,
-        replacement: assistantUiRequire.resolve("@assistant-ui/tap"),
+        replacement: assistantUiPkgRequire.resolve("@assistant-ui/tap"),
       },
       {
         find: /^assistant-stream$/,
-        replacement: assistantUiRequire.resolve("assistant-stream"),
+        replacement: assistantUiPkgRequire.resolve("assistant-stream"),
       },
       {
         find: /^assistant-stream\/utils$/,
-        replacement: assistantUiRequire.resolve("assistant-stream/utils"),
+        replacement: assistantUiPkgRequire.resolve("assistant-stream/utils"),
       },
     ];
   } catch {

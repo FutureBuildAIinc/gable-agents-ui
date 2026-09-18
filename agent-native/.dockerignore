@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+.git
+**/.git
+.output
+dist
+**/dist
+data
+**/data
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.generated
+**/.generated
+Dockerfile
+.dockerignore

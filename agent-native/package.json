@@ -215,7 +215,14 @@
   "pnpm": {
     "overrides": {
       "react-router": "8.1.0",
-      "zod": "4.4.3"
+      "zod": "4.4.3",
+      "@assistant-ui/core": "0.1.17",
+      "@types/react": "19.2.7",
+      "@types/react-dom": "19.2.3",
+      "@assistant-ui/react": "0.12.28",
+      "@assistant-ui/react-markdown": "0.12.11",
+      "@assistant-ui/store": "0.2.13",
+      "@assistant-ui/tap": "0.5.16"
     }
   }
 }
