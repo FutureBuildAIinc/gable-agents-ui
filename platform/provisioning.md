@@ -77,3 +77,20 @@ APPWRITE_API_KEY=<new standard_... key with scopes> \
 EVENTS_INGEST_KEY=<openssl rand -hex 32> \
 platform/scripts/deploy-appwrite.sh
 ```
+
+## END-TO-END VERIFIED LIVE — 2026-09-18
+
+With the third session key (Documents scopes inside the Databases group):
+
+1. `deploy-appwrite.sh` full pass: `platform` DB + `events` collection
+   (8 attributes, cursor + org_type indexes) — HTTP 201 on the probe write.
+2. Real ERP loop: gable booted locally (Postgres via docker, `AUTH_MODE=dev`,
+   `PORT=8090`, events env set) → `POST /api/v1/quotes` (201, quote
+   `93453636-…`) → **`quote.created`** document appeared in the live
+   collection; `PUT /quotes/{id}/state` → **`quote.sent`** followed. Envelope
+   correct (org `experiments`, entity kind/id, data payload, RFC3339 `at`).
+3. Consumer poll shape (`?limit(n)` list) verified against the collection.
+
+Operator follow-ups: open-runtimes executor function builds broken (Phase 2
+fanout parked); OIDC/JWKS endpoints 404 (ADR-0002 BYOA gate); per-consumer
+documents-only API key for gable/micro-UIs (current session key is broad).
