@@ -40,6 +40,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { openArtifact } from "@/lib/artifact";
 import { APP_TITLE } from "@/lib/app-config";
 import { visibleChatThreads } from "@/lib/sidebar-thread-state";
 import { cn } from "@/lib/utils";
@@ -414,17 +415,23 @@ function ChatThreadsSection({ collapsed }: { collapsed: boolean }) {
           Workspace
         </p>
         {[
-          { to: "/home", label: "Home", icon: IconLayoutSidebarLeftExpand },
-          { to: "/quotes/new", label: "New Quote", icon: IconEdit },
-          { to: "/quotes", label: "Quotes", icon: IconClipboardList },
-          { to: "/products", label: "Products", icon: IconPackage },
+          { to: "/home", label: "Chat", icon: IconLayoutSidebarLeftExpand, artifact: false },
+          { to: "/quotes/new", label: "New Quote", icon: IconEdit, artifact: true },
+          { to: "/quotes", label: "Quotes", icon: IconClipboardList, artifact: true },
+          { to: "/products", label: "Products", icon: IconPackage, artifact: true },
         ].map((item) => (
           <Link
             key={item.to}
             to={item.to}
+            onClick={(e) => {
+              if (item.artifact) {
+                e.preventDefault();
+                openArtifact(item.to, item.label);
+              }
+            }}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-sidebar-accent",
-              location.pathname === item.to && "bg-sidebar-accent",
+              !item.artifact && location.pathname === item.to && "bg-sidebar-accent",
             )}
           >
             <item.icon className="size-4 shrink-0" strokeWidth={1.8} />
