@@ -1,0 +1,70 @@
+# Build the gable-quote agent-native app from the monorepo (build context:
+# the repo ROOT, i.e. gable-agents-ui/). The app depends on workspace
+# packages under agent-native/packages/.
+#
+# Runtime env (all optional where noted):
+#   PORT (default 3000)
+#   APP_URL (public origin, e.g. https://quotes.experiments.futurebuild.ai)
+#   BETTER_AUTH_SECRET (required)
+#   DATABASE_URL (REQUIRED in deployment — PGlite is a devDep not bundled)
+#   GABLE_API_BASE_URL, GABLE_INTEGRATION_KEY (or GABLE_SERVICE_TOKEN)
+#   APPWRITE_JWKS_URL, APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID
+#   APPWRITE_EVENTS_READ_KEY (events consumer plugin, optional)
+#   CLASSIC_UI_BASE_URL (classic ERP tile, optional)
+
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+
+# Deterministic toolchain
+RUN corepack enable && corepack prepare pnpm@10.29.1 --activate
+
+# Copy manifests for the dependency-install layer (repo-root context)
+COPY agent-native/package.json agent-native/pnpm-lock.yaml agent-native/pnpm-workspace.yaml ./
+COPY agent-native/packages/core/package.json packages/core/
+COPY agent-native/packages/agentkit/package.json packages/agentkit/
+COPY agent-native/packages/toolkit/package.json packages/toolkit/
+COPY agent-native/packages/shared-app-config/package.json packages/shared-app-config/
+COPY agent-native/packages/gable-client/package.json packages/gable-client/
+COPY agent-native/templates/gable-quote/package.json templates/gable-quote/
+
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Full source (monorepo under agent-native/)
+COPY agent-native/ .
+
+# Re-link workspace bins after the full copy (COPY . . clobbers container
+# node_modules with the repo's empty package node_modules dirs). pnpm purges
+# the mismatched dir non-interactively; do it explicitly then reinstall.
+RUN rm -rf node_modules */node_modules */*/node_modules 2>/dev/null; \
+    pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
+
+# Build workspace packages in dependency order (core's dist imports
+# toolkit's design-system, so toolkit must build first; devDeps required for
+# tsc/tsx so NODE_ENV stays unset here), then the production app bundle.
+RUN pnpm --filter @agent-native/agentkit --filter @agent-native/shared-app-config \
+      --filter @agent-native/toolkit --filter @agent-native/core run build
+ENV NODE_ENV=production
+RUN pnpm --filter gable-quote build
+
+# Production stage: node output only
+FROM node:22-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY --from=build /app/templates/gable-quote/.output .output
+
+RUN mkdir -p /app/data && chown node:node /app/data
+USER node
+VOLUME ["/app/data"]
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/_agent-native/ping').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", ".output/server/index.mjs"]
+
+# NOTE: DATABASE_URL is REQUIRED in deployment — PGlite is a devDependency and
+# not bundled in this production image. Point it at the platform Postgres
+# (e.g. postgresql://gable_agents:...@<pg-host>:5432/gable_quote) per
+# docs/runbook-live.md and platform/dual-frontend-deploy.md.
