@@ -1,6 +1,6 @@
 import { useActionMutation, useActionQuery } from "@agent-native/core/client/hooks";
 import { useSendToAgentChat } from "@agent-native/core/client/agent-chat";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useHotkeys } from "@/lib/hotkeys";
 import { useScreenTracking } from "@/lib/screen-tracking";
+import { useVoiceInput } from "@/lib/voice";
 import { draftTotalCents, useQuoteBuilderDraft, type BuilderLine } from "@/lib/quote-builder";
 
 interface Customer {
@@ -42,7 +44,16 @@ export default function QuoteBuilderRoute() {
   const { send, isGenerating } = useSendToAgentChat();
   const [search, setSearch] = useState("");
   const [qty, setQty] = useState("1");
+  const [driverText, setDriverText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const driverRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const voice = useVoiceInput();
+
+  // Voice transcript → driver bar (type to override).
+  useEffect(() => {
+    if (voice.transcript) setDriverText(voice.transcript);
+  }, [voice.transcript]);
 
   const { data: customers } = useActionQuery<Customer[]>("list-customers", { limit: 100 });
   const { data: products } = useActionQuery<Product[]>("list-products", { limit: 200 });
@@ -121,6 +132,51 @@ export default function QuoteBuilderRoute() {
     toast.info("Sent to the agent — watch this screen as it works.");
   };
 
+  const submitDriver = () => {
+    const v = driverText.trim();
+    if (!v) return;
+    drive(v);
+    setDriverText("");
+    voice.reset();
+  };
+
+  // Hotkeys — the voice+keyboard operator's speed layer.
+  useHotkeys([
+    { key: "/", action: () => driverRef.current?.focus(), description: "Focus agent driver" },
+    { key: "k", ctrl: true, action: () => searchRef.current?.focus(), description: "Focus product search" },
+    {
+      key: "m",
+      ctrl: true,
+      action: () => voice.toggle(),
+      allowInInputs: true,
+      description: "Toggle voice input",
+    },
+    {
+      key: "p",
+      ctrl: true,
+      action: () => void priceAll(),
+      allowInInputs: true,
+      description: "Price lines",
+    },
+    {
+      key: "Enter",
+      ctrl: true,
+      allowInInputs: true,
+      action: () => {
+        if (document.activeElement === driverRef.current) submitDriver();
+        else void submit();
+      },
+      description: "Create quote (driver: send)",
+    },
+    {
+      key: "Backspace",
+      ctrl: true,
+      action: () => void mutate((d) => ({ ...d, lines: [], customer: null, notes: undefined })),
+      description: "Clear draft",
+    },
+    { key: "Escape", action: () => (document.activeElement as HTMLElement | null)?.blur?.(), description: "Blur" },
+  ]);
+
   const onUpload = async (file: File) => {
     const text = await file.text();
     drive(
@@ -194,6 +250,7 @@ export default function QuoteBuilderRoute() {
               <Label htmlFor="search">Add product</Label>
               <Input
                 id="search"
+                ref={searchRef}
                 placeholder="Search by name or SKU…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -292,17 +349,47 @@ export default function QuoteBuilderRoute() {
             className="flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              const input = e.currentTarget.elements.namedItem("driver") as HTMLInputElement;
-              const v = input.value.trim();
-              if (v) drive(v);
-              input.value = "";
+              submitDriver();
             }}
           >
-            <Input name="driver" placeholder='e.g. "build a quote for Kelbrook: 40 sheets 7/16 OSB sheathing and 200 LF of 2x10 SPF"`' />
+            <Input
+              name="driver"
+              ref={driverRef}
+              value={driverText}
+              onChange={(e) => setDriverText(e.target.value)}
+              placeholder='Type or speak: "build a quote for Kelbrook: 40 sheets 7/16 OSB sheathing and 200 LF of 2x10 SPF"'
+            />
+            {voice.supported && (
+              <Button
+                type="button"
+                variant={voice.listening ? "destructive" : "outline"}
+                size="icon"
+                onClick={voice.toggle}
+                title={voice.listening ? "Stop listening (Ctrl+M)" : "Speak (Ctrl+M)"}
+                aria-label={voice.listening ? "Stop voice input" : "Start voice input"}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="size-4"
+                >
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+                </svg>
+              </Button>
+            )}
             <Button type="submit" disabled={isGenerating}>
               {isGenerating ? "Working…" : "Drive"}
             </Button>
           </form>
+          {voice.listening && (
+            <p className="text-muted-foreground animate-pulse text-xs">
+              Listening… speak the work.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
               Upload material list
@@ -339,6 +426,22 @@ export default function QuoteBuilderRoute() {
             Driver messages run in your chat thread (the “Other…” button); the agent operates
             this screen via the shared draft — you'll see lines and prices appear here as it works.
           </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3 text-[11px] text-muted-foreground/70">
+            {[
+              ["/", "driver"],
+              ["Ctrl+K", "search"],
+              ["Ctrl+M", "voice"],
+              ["Ctrl+P", "price"],
+              ["Ctrl+Enter", "create / send"],
+              ["Ctrl+⌫", "clear"],
+              ["Esc", "blur"],
+            ].map(([k, label]) => (
+              <span key={k}>
+                <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">{k}</kbd>{" "}
+                {label}
+              </span>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

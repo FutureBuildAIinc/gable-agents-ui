@@ -3,9 +3,12 @@ import { useActionMutation, useActionQuery } from "@agent-native/core/client/hoo
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 
-import { useScreenTracking } from "@/lib/screen-tracking";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { useHotkeys } from "@/lib/hotkeys";
+import { useScreenTracking } from "@/lib/screen-tracking";
+import { useVoiceInput } from "@/lib/voice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -49,11 +52,36 @@ export default function QuoteDetailRoute() {
     onError: (e) => toast.error(`Convert failed: ${String(e)}`),
   });
   const { send, isGenerating } = useSendToAgentChat();
+  const voice = useVoiceInput();
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    if (voice.transcript) setNote(voice.transcript);
+  }, [voice.transcript]);
   useScreenTracking("quote-detail", {
     kind: "quote",
     id: quoteId,
     label: quote?.quote_number ?? quote?.customer_name,
   });
+
+  const handoff = () => {
+    send({
+      message: `Work quote ${quote?.quote_number ?? quoteId.slice(0, 8)} for ${quote?.customer_name ?? "this customer"}: review the lines and margins on screen, then tell me what you'd adjust before we accept.`,
+      submit: true,
+    });
+    toast.info("Handed to the agent — it can see this quote via view-screen.");
+  };
+
+  const submit = () => {
+    if (window.confirm("Accept this quote and convert it to a sales order in gable?")) {
+      accept.mutate({ quoteId });
+    }
+  };
+
+  useHotkeys([
+    { key: "a", ctrl: true, action: handoff, allowInInputs: true, description: "Ask agent to work this quote" },
+    { key: "Enter", ctrl: true, action: submit, allowInInputs: true, description: "Accept & convert" },
+    { key: "m", ctrl: true, action: () => voice.toggle(), allowInInputs: true, description: "Voice note" },
+  ]);
 
   if (error) {
     return (
@@ -80,26 +108,12 @@ export default function QuoteDetailRoute() {
           <p className="text-muted-foreground text-sm">{quote?.customer_name}</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={isGenerating}
-            onClick={() => {
-              send({
-                message: `Work quote ${quote?.quote_number ?? quoteId.slice(0, 8)} for ${quote?.customer_name ?? "this customer"}: review the lines and margins on screen, then tell me what you'd adjust before we accept.`,
-                submit: true,
-              });
-              toast.info("Handed to the agent — it can see this quote via view-screen.");
-            }}
-          >
+          <Button variant="outline" disabled={isGenerating} onClick={handoff}>
             {isGenerating ? "Agent working…" : "Ask agent to work this quote"}
           </Button>
           <Button
             disabled={isLoading || accept.isPending || quote?.status === "converted"}
-            onClick={() => {
-              if (window.confirm("Accept this quote and convert it to a sales order in gable?")) {
-                accept.mutate({ quoteId });
-              }
-            }}
+            onClick={submit}
           >
             {quote?.status === "converted" ? "Converted" : "Accept & convert to order"}
           </Button>
@@ -155,6 +169,62 @@ export default function QuoteDetailRoute() {
           <CardContent className="text-sm whitespace-pre-wrap">{quote.notes}</CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Voice note</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex gap-2">
+            <textarea
+              className="border-input bg-background min-h-16 w-full rounded-md border px-3 py-2 text-sm"
+              placeholder='Speak a note (Ctrl+M) — e.g. "call before delivery, gate code 4114"'
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            {voice.supported && (
+              <Button
+                type="button"
+                variant={voice.listening ? "destructive" : "outline"}
+                size="icon"
+                className="shrink-0 self-start"
+                onClick={voice.toggle}
+                title={voice.listening ? "Stop listening" : "Speak (Ctrl+M)"}
+                aria-label="Toggle voice note"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-4">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+                </svg>
+              </Button>
+            )}
+          </div>
+          {note.trim() && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                send({
+                  message: `Append this note to quote ${quote?.quote_number ?? quoteId.slice(0, 8)} on screen: "${note.trim()}" — add it to the quote's notes in gable if there's a path, otherwise just confirm you'll remember it for this conversation.`,
+                  submit: true,
+                });
+                toast.info("Sent the note to the agent.");
+                setNote("");
+                voice.reset();
+              }}
+            >
+              Send note to agent
+            </Button>
+          )}
+          <div className="text-muted-foreground/70 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2 text-[11px]">
+            {[["Ctrl+A", "ask agent"], ["Ctrl+Enter", "accept & convert"], ["Ctrl+M", "voice note"]].map(([k, label]) => (
+              <span key={k}>
+                <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">{k}</kbd> {label}
+              </span>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
