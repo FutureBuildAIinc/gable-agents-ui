@@ -48,12 +48,13 @@ interface EventDoc {
 }
 
 async function fetchEvents(cfg: EventsConfig, since: string | null): Promise<EventDoc[]> {
+  // This FB Console build (Go fork) silently IGNORES list params (queries[],
+  // limit, cursor, ordering) over REST — every call returns the full list.
+  // Fetch everything (the event log stays small) and dedupe client-side.
+  void since;
   const url = new URL(
     `${cfg.endpoint}/v1/databases/${cfg.database}/collections/${cfg.collection}/documents`,
   );
-  const queries: string[] = ["orderAsc(\"$createdAt\")", "limit(100)"];
-  if (since) queries.unshift(`greaterThan("$createdAt", "${since}")`);
-  for (const q of queries) url.searchParams.append("queries[]", q);
 
   const res = await fetch(url, {
     headers: {
@@ -73,22 +74,33 @@ export default async function registerGableEvents(): Promise<void> {
     return;
   }
 
-  let cursor: string | null = null;
+  let lastSeenId: string | null = null;
   const poll = async (): Promise<void> => {
     try {
-      const docs = await fetchEvents(cfg, cursor);
-      const watched = docs.filter((d) =>
+      const docs = await fetchEvents(cfg, lastSeenId);
+      if (docs.length === 0) return;
+      // This build returns documents in insertion order (oldest first);
+      // docs AFTER the last-seen id are new. On boot, anchor on the newest
+      // without emitting so the UI doesn't replay the backlog.
+      let fresh: EventDoc[];
+      if (lastSeenId == null) {
+        fresh = [];
+      } else {
+        const cut = docs.findIndex((d) => d.$id === lastSeenId);
+        fresh = cut === -1 ? docs : docs.slice(cut + 1);
+      }
+      lastSeenId = docs[docs.length - 1]?.$id ?? lastSeenId;
+
+      const watched = fresh.filter((d) =>
         WATCHED_PREFIXES.some((p) => (d.type ?? "").startsWith(p)),
       );
       if (watched.length > 0) {
-        cursor = docs[docs.length - 1]?.$id ?? cursor;
         await appStatePut(SESSION, MARKER_KEY, {
           latest: watched.map((d) => ({ type: d.type, entity: d.entity, at: d.at })),
           count: watched.length,
           _writeId: `${Date.now()}`,
         });
-      } else if (docs.length > 0) {
-        cursor = docs[docs.length - 1]?.$id ?? cursor;
+        console.log(`[gable-events] ${watched.length} new event(s): ${watched.map((d) => d.type).join(", ")}`);
       }
     } catch (error) {
       console.warn("[gable-events] poll error:", error);
