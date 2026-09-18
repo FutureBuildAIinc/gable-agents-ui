@@ -60,3 +60,20 @@ Then in project `experiments`:
 Add folder `/experiments` to project `futureshade` (env `staging`): `COOLIFY_TOKEN`,
 `APPWRITE_PROJECT_ID`, `APPWRITE_JWKS_URL`, `APPWRITE_EVENTS_INGEST_KEY`,
 `APPWRITE_EVENTS_READ_KEY`, `GABLE_INTEGRATION_KEY`.
+
+## Session findings (2026-09-17, live probes)
+
+- Coolify: `Experiments` project exists (uuid `iioxcdmvrxtulbvycbpz3pmp`, env `production`); token verified. Service deployment additionally needs DOCR registry credentials.
+- Appwrite: `Experiments` project renamed from "test project" (ID `6aac63bd0030b21a61f3`). Session key authenticates but authorizes NOTHING (401 on every scoped endpoint incl. runtimes) — created with empty scopes. Appwrite keys are immutable: create a NEW key with scopes `databases.*, collections.*, documents.*, functions.*, executions.*` (read+write) and re-run `platform/scripts/deploy-appwrite.sh`.
+- OIDC discovery at `/v1/projects/<id>/oauth2/.well-known/openid-configuration` and `/jwks` → 404. Either the OIDC provider is absent from this self-hosted CE build or lives at another path — this is the ADR-0002 "verify on first install" item and now gates BYOA JWT verification (the micro-UI auth plugins need a JWKS URL). Check Console → project → Auth → OAuth2/OIDC provider settings.
+- `/v1/health` requires auth on this instance (non-default hardening).
+
+## One-command deploy (once a scoped key exists)
+
+```bash
+APPWRITE_ENDPOINT=https://api.futurebuild.ai \
+APPWRITE_PROJECT_ID=6aac63bd0030b21a61f3 \
+APPWRITE_API_KEY=<new standard_... key with scopes> \
+EVENTS_INGEST_KEY=<openssl rand -hex 32> \
+platform/scripts/deploy-appwrite.sh
+```
