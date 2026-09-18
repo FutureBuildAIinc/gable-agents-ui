@@ -76,7 +76,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           >
             <IconMenu2 className="size-4" />
           </button>
-          <span className="truncate text-sm font-semibold">Gable Quotes</span>
+          <span className="truncate text-sm font-semibold">Gable Inventory</span>
         </div>
       ) : (
         <Suspense fallback={<div className="h-12 shrink-0" />}>

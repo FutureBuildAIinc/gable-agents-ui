@@ -6,7 +6,7 @@ import { getChatHomeThreadId } from "@/lib/chat-home-thread";
 import { openArtifact } from "@/lib/artifact";
 
 export function meta() {
-  return [{ title: "Gable Quotes" }];
+  return [{ title: "Gable AR" }];
 }
 
 /**

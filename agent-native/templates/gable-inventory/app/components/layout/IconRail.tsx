@@ -74,7 +74,7 @@ export function IconRail() {
         <Link
           to="/home"
           className="bg-primary text-primary-foreground mb-2 flex size-9 items-center justify-center rounded-lg text-sm font-bold"
-          title="Gable Quotes"
+          title="Gable Inventory"
         >
           G
         </Link>

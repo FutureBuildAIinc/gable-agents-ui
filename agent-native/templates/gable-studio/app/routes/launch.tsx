@@ -11,7 +11,7 @@ import { openArtifact } from "@/lib/artifact";
 import { useScreenTracking } from "@/lib/screen-tracking";
 
 export function meta() {
-  return [{ title: "Launcher — Gable Quotes" }];
+  return [{ title: "Workbench — Gable Studio" }];
 }
 
 /**
