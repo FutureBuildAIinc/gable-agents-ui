@@ -1,6 +1,17 @@
 # ADR 0001 — Events via Appwrite Functions + TablesDB
 
-**Status:** accepted · **Date:** 2026-09-17
+**Status:** accepted, amended 2026-09-18 (Phase 1 function-free) · **Date:** 2026-09-17
+
+**Amendment (live verification 2026-09-18):** this FB Console instance's
+open-runtimes executor fails every function build (source-independent "Build
+produced no output artifact") and ships no Go runtime images. Phase 1
+therefore drops the ingest function: gable's `eventpub` writes the flattened
+envelope DIRECTLY as a document (X-Appwrite-Key/Project). Realtime and
+cursor-polling are native to the collection, so nothing else changes. The
+node-22 function ports in `platform/functions/` remain the Phase 2 webhook
+fanout once an operator fixes the executor. Verified live: quote create and
+state change produced `quote.created` / `quote.sent` documents in
+`platform.events`.
 
 ## Context
 

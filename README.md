@@ -26,10 +26,14 @@ Gable stays the system of record for ERP data (quotes, orders, invoices, invento
 | App | Domain | Status |
 |---|---|---|
 | `agent-native/templates/gable-quote` | Sales / quoting | reference implementation |
-| `agent-native/templates/gable-ar` | Invoicing / accounts receivable | scaffolded |
-| `agent-native/templates/gable-inventory` | Inventory / PIM | scaffolded |
-| `agent-native/templates/gable-dispatch` | Loading / picking / dispatch | scaffolded |
-| `agent-native/templates/gable-studio` | Template builder: customize or create micro-UIs from chat with in-chat preview | scaffolded |
+| `agent-native/templates/gable-ar` | Invoicing / accounts receivable | built, typechecked |
+| `agent-native/templates/gable-inventory` | Inventory / PIM | built, typechecked |
+| `agent-native/templates/gable-dispatch` | Loading / picking / dispatch | built, typechecked |
+| `agent-native/templates/gable-studio` | Template builder: customize or create micro-UIs from chat with in-chat preview | built, typechecked |
+
+Event backbone **verified live 2026-09-18** (see `docs/runbook-live.md`): gable
+mutations produce `events` documents in FB Console; function-free Phase 1 per
+ADR-0001 amendment.
 
 ## Quickstart
 
@@ -46,4 +50,4 @@ pnpm dev                                                       # agent-native de
 # 3. Appwrite functions — see platform/README.md
 ```
 
-Docs: `docs/architecture.md` · `docs/micro-ui-conventions.md` · `docs/adr/`
+Docs: `docs/architecture.md` · `docs/micro-ui-conventions.md` · `docs/runbook-live.md` · `docs/adr/`
