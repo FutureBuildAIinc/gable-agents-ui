@@ -60,11 +60,11 @@ import (
 	"github.com/gablelbm/gable/pkg/apps"
 	"github.com/gablelbm/gable/pkg/audit"
 	"github.com/gablelbm/gable/pkg/database"
+	"github.com/gablelbm/gable/pkg/eventpub"
 	"github.com/gablelbm/gable/pkg/metrics"
 	"github.com/gablelbm/gable/pkg/middleware"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/gablelbm/gable/pkg/eventpub"
 )
 
 func main() {
@@ -102,8 +102,13 @@ func main() {
 	// Platform event backbone (gable-agents-ui ADR 0001): publish domain
 	// events to the Appwrite events-ingest function. No-op unless
 	// APPWRITE_EVENTS_URL + APPWRITE_EVENTS_KEY are set.
-	eventsPub := eventpub.New(cfg.EventsURL, cfg.EventsKey, cfg.EventsOrg)
-	if cfg.EventsURL != "" {
+	eventsURL := cfg.EventsURL
+	if eventsURL == "" && cfg.EventsKey != "" {
+		// Default to the events collection on the shared platform endpoint.
+		eventsURL = "https://api.futurebuild.ai/v1/databases/platform/collections/events/documents"
+	}
+	eventsPub := eventpub.New(eventsURL, cfg.EventsProject, cfg.EventsKey, cfg.EventsOrg)
+	if eventsURL != "" {
 		logger.Info("platform event publisher enabled", "org", cfg.EventsOrg)
 	}
 
@@ -713,7 +718,6 @@ func main() {
 	// constructed inline here historically — two live services over one repo).
 	integrationHandler := integrations.NewHandler(db, pricingSvc, quoteSvc, orderSvc, customerSvc, productSvc, integrationAPIKey)
 	integrationHandler.RegisterRoutes(mux)
-
 
 	// 5z. Apps platform: catalog the unconverted modules, mount converted
 	// apps through the enablement gate, expose the Apps API, and sync

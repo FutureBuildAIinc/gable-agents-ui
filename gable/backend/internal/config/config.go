@@ -87,10 +87,11 @@ type Config struct {
 	FBBrainPublicKeyPath  string // Path to Brain's RSA public key PEM for A2A JWS verification
 	FBBrainOrgID          string // Tenant org_id for Brain financial attribution
 
-	// Platform event backbone (Appwrite events-ingest — gable-agents-ui ADR 0001)
-	EventsURL        string // events-ingest function endpoint; empty disables eventpub
-	EventsKey        string // X-Events-Key shared secret for the ingest function
-	EventsOrg        string // Org slug stamped on every published event envelope
+	// Platform event backbone (Appwrite TablesDB events collection — gable-agents-ui ADR 0001)
+	EventsURL     string // Appwrite documents endpoint; empty disables eventpub
+	EventsKey     string // Appwrite API key with documents.create
+	EventsOrg     string // Org slug stamped on every published event envelope
+	EventsProject string // Appwrite project id (X-Appwrite-Project header)
 }
 
 func Load() (*Config, error) {
@@ -159,9 +160,10 @@ func Load() (*Config, error) {
 		FBBrainOrgID:          getEnv("FB_BRAIN_ORG_ID", ""),
 
 		// Platform event backbone (opt-in; empty URL = disabled no-op)
-		EventsURL: getEnv("APPWRITE_EVENTS_URL", ""),
-		EventsKey: getEnv("APPWRITE_EVENTS_KEY", ""),
-		EventsOrg: getEnv("APPWRITE_ORG", ""),
+		EventsURL:     getEnv("APPWRITE_EVENTS_URL", ""),
+		EventsKey:     getEnv("APPWRITE_EVENTS_KEY", ""),
+		EventsOrg:     getEnv("APPWRITE_ORG", ""),
+		EventsProject: getEnv("APPWRITE_PROJECT_ID", ""),
 	}
 
 	// F-05: Startup validation — fail fast if Brain is enabled but missing required config

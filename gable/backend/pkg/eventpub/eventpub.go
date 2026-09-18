@@ -2,7 +2,12 @@
 // SPDX-FileCopyrightText: 2026 FutureBuild, Inc. and OpenLBM contributors
 
 // Package eventpub publishes domain events from gable to the platform event
-// backbone (Appwrite events-ingest function — see gable-agents-ui ADR 0001).
+// backbone (Appwrite TablesDB `events` collection — see gable-agents-ui ADR 0001).
+//
+// Events are written directly as documents: the collection is the durable,
+// replayable log, Realtime emits on document create, and consumers
+// (micro-UI server plugins) cursor-poll it. Webhook fanout moves into an
+// Appwrite function in a later phase once the executor is healthy.
 //
 // # Semantics
 //
@@ -47,13 +52,13 @@ type EntityRef struct {
 
 // Event is the wire envelope (ADR 0001).
 type Event struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"` // <entity>.<verb>, e.g. "order.confirmed"
-	Org      string       `json:"org"`
-	BranchID string       `json:"branchId,omitempty"`
-	Entity   EntityRef    `json:"entity"`
-	Data     any          `json:"data,omitempty"`
-	At       string       `json:"at"` // RFC3339
+	ID       string    `json:"id"`
+	Type     string    `json:"type"` // <entity>.<verb>, e.g. "order.confirmed"
+	Org      string    `json:"org"`
+	BranchID string    `json:"branchId,omitempty"`
+	Entity   EntityRef `json:"entity"`
+	Data     any       `json:"data,omitempty"`
+	At       string    `json:"at"` // RFC3339
 }
 
 // Publisher is the seam producers depend on. The zero value is a disabled
@@ -86,8 +91,9 @@ type disabled struct{}
 func (disabled) Publish(string, EntityRef, ...PublishOption) {}
 
 type httpPublisher struct {
-	url     string
-	key     string
+	url     string // Appwrite documents endpoint: .../v1/databases/<db>/collections/<coll>/documents
+	project string // Appwrite project id (X-Appwrite-Project)
+	key     string // Appwrite API key with documents.create (X-Appwrite-Key)
 	org     string
 	client  *http.Client
 	queue   chan Event
@@ -100,17 +106,18 @@ type httpPublisher struct {
 
 // New returns a Publisher for the platform event backbone. When url or key is
 // empty it returns the no-op Publisher — event publishing is opt-in per
-// deployment via APPWRITE_EVENTS_URL / APPWRITE_EVENTS_KEY.
-func New(url, key, org string) Publisher {
+// deployment via APPWRITE_EVENTS_URL / APPWRITE_EVENTS_KEY / APPWRITE_PROJECT_ID.
+func New(url, project, key, org string) Publisher {
 	if url == "" || key == "" {
 		return disabled{}
 	}
 	p := &httpPublisher{
-		url:    url,
-		key:    key,
-		org:    org,
-		client: &http.Client{Timeout: 5 * time.Second},
-		queue:  make(chan Event, queueSize),
+		url:     url,
+		project: project,
+		key:     key,
+		org:     org,
+		client:  &http.Client{Timeout: 5 * time.Second},
+		queue:   make(chan Event, queueSize),
 	}
 	p.wg.Add(1)
 	go p.drain()
@@ -152,7 +159,24 @@ func (p *httpPublisher) drain() {
 }
 
 func (p *httpPublisher) post(ev Event) {
-	body, err := json.Marshal(ev)
+	// Direct document create: the flattened ADR-0001 envelope IS the document.
+	dataJSON, err := json.Marshal(ev.Data)
+	if err != nil {
+		dataJSON = []byte("{}")
+	}
+	body, err := json.Marshal(map[string]any{
+		"documentId": "unique()",
+		"data": map[string]string{
+			"eventId":    ev.ID,
+			"type":       ev.Type,
+			"org":        ev.Org,
+			"branchId":   ev.BranchID,
+			"entityKind": ev.Entity.Kind,
+			"entityId":   ev.Entity.ID,
+			"data":       string(dataJSON),
+			"at":         ev.At,
+		},
+	})
 	if err != nil {
 		return
 	}
@@ -161,7 +185,8 @@ func (p *httpPublisher) post(ev Event) {
 		return
 	}
 	req.Header.Set("content-type", "application/json")
-	req.Header.Set("x-events-key", p.key)
+	req.Header.Set("x-appwrite-project", p.project)
+	req.Header.Set("x-appwrite-key", p.key)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return // dropped by design; see package doc
