@@ -16,7 +16,7 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node", "vite/client", "react-dom"],
     "incremental": true,
     "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo/core.tsbuildinfo"

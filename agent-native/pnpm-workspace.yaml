@@ -126,3 +126,8 @@ allowBuilds:
   protobufjs: true
   sharp: true
   workerd: true
+
+# gable-agents-ui: pin react-router to one version across the workspace —
+# mixed 8.1.0/8.3.0 copies break template typechecks (duplicate SerializeFrom types).
+overrides:
+  react-router: 8.1.0
