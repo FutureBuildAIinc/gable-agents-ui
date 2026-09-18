@@ -96,8 +96,21 @@ Apps may subscribe to `platform` events (ADR 0001) via a server plugin that curs
 
 ## Scaffolding a new app
 
-1. `cp -r templates/gable-quote templates/gable-<domain>` (reference impl is the cleanest base).
-2. Rename: `package.json` name, `agent-chat.ts` appId + system prompt, `AGENTS.md`, `server/plugins/auth.ts` marketing block.
+1. `cp -r templates/gable-quote templates/gable-<domain>` (reference impl is the cleanest base — it carries the full workbench shell).
+2. Rename: `package.json` name, `agent-chat.ts` appId + system prompt, `AGENTS.md`, `server/plugins/auth.ts` marketing block, `app/lib/app-config.ts` title.
 3. Replace domain actions/routes/skill; keep navigate/view-screen/provider-api-request; keep the auth + gable lib wiring untouched.
-4. Add to `packages/shared-app-config/templates.ts` when ready for the picker (keep `hidden: true` until productized).
-5. Typecheck: `pnpm --filter gable-<domain> typecheck` from `agent-native/`.
+4. **Pane manifest**: write `app/lib/pane-routes.tsx` mapping the domain's client-component screens to lazy imports (in-process pane renderer).
+5. **Launcher tiles**: set `app/routes/launch.tsx` ACTIONS to the domain's verb-tiles.
+6. Add to `packages/shared-app-config/templates.ts` when ready for the picker (keep `hidden: true` until productized).
+7. Typecheck: `pnpm --filter gable-<domain> typecheck` from `agent-native/`.
+
+## The workbench shell (shared by every gable-* app — do not fork per app)
+
+Chat-center with an in-process artifact pane:
+- `app/components/layout/Layout.tsx` — narrow `IconRail` left, chat center, `ArtifactPane` right; `?pane=1` renders any route chromeless (used by the detached OS window).
+- `app/components/layout/IconRail.tsx` — workspace icon rail (artifact buttons open in-process).
+- `app/components/layout/ArtifactPane.tsx` — renders the screen via `pane-routes.tsx` IN-PROCESS (no iframe double-chrome); resizable (drag, persisted), collapsible, "opened by agent" pulse; detach MOVES to an OS window (reattach strip), never duplicates.
+- `app/lib/artifact.ts` — localStorage+event artifact store (open/close/detach/reattach, width).
+- `app/lib/pane-routes.tsx` — client-component route manifest (the in-process renderer's registry).
+- `app/lib/{hotkeys,voice,screen-tracking}.ts` — operator input + screen→agent context.
+- `app/global.css` — Gable Industrial Dark theme (tokens from `gable/docs/design-system.md`); apply to every gable-* app unchanged.
