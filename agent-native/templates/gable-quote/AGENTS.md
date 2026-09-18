@@ -3,7 +3,10 @@
 Gable Quotes is the sales/quoting micro-UI for a lumber & building-materials
 dealer. It runs on the Gable ERP backend: **gable is the system of record** for
 products, customers, prices, quotes, and orders. This app owns no ERP data —
-its local database holds only framework state (threads, app state, sync).
+its local database holds only framework state (threads, app state, sync) plus
+**one app-owned table**: `relationship_activities`, the outreach log behind the
+Accounts screen (see below). gable has no concept of engagement/outreach
+tracking, so that table lives here, not in the ERP.
 
 ## Screen-driving (agent-as-UI) contract
 
@@ -25,11 +28,16 @@ application-state (`quote-builder`); the UI and the agent write the same doc
 | `get-quote` | GET | One quote with lines/totals |
 | `create-quote` | POST | Draft a quote in gable (unit prices in integer cents) |
 | `accept-quote` | POST | Accept + convert quote to order — confirm with the user first |
+| `list-account-engagement` | GET (read-only) | The sales-relationship view: merges gable customers with logged activities for one calendar month; flags accounts below a touch threshold (default 3/month) — the source of truth for "accounts needing outreach" |
+| `list-activities` | GET (read-only) | Logged relationship activities (calls/emails/meetings/visits/notes), filterable by customer/date |
+| `log-activity` | POST | Record an outreach touch against a customer (own table, not gable) |
 | `classic-link` | GET | Deterministic deep link into the classic gable ERP UI (quote/order/invoice/product/customer → `/quotes/{id}` etc.) — never fabricate URLs |
 | `view-screen` / `navigate` | — | Context-awareness; call `view-screen` first every turn |
 
 All gable access goes through `server/lib/gable.ts` (`@gable/client`). Never
 fetch gable URLs directly, and never add hand-written JSON routes.
+`relationship_activities` goes through `server/db/index.ts` (Drizzle) — the
+one table this app owns; never call gable for engagement/outreach data.
 
 ## Core Rules
 
@@ -40,8 +48,12 @@ fetch gable URLs directly, and never add hand-written JSON routes.
   UOM. Always show the UOM next to quantities.
 - Auth: sessions are Appwrite JWTs (BYOA). Forwarded user tokens take
   precedence; the integration key covers agent/background calls.
-- Never fabricate prices, stock, or quote state. If an action fails, say so
-  and recover. Verify a write before reporting it done (re-fetch the quote).
+- Never fabricate prices, stock, quote state, or activity counts. If an action
+  fails, say so and recover. Verify a write before reporting it done
+  (re-fetch the quote / re-list activities).
+- `relationship_activities` is visible org-wide (any rep sees any account's
+  logged touches) — `loggedByEmail` is provenance, not an access filter.
+  Never expose it as private-per-user.
 - UI feedback: target 100 ms, never exceed 400 ms; acknowledge before network work.
 
 ## Dual frontend
@@ -52,11 +64,15 @@ bridge is `classic-link` deep links handed to the user from chat.
 
 ## Screens
 
-- `/home` — button launcher: New Quote, Quotes, Products, and "Other…" (chat).
+- `/home` — button launcher: New Quote, Accounts needing outreach, and
+  "Other…" (chat).
 - `/quotes/new` — AGENT-DRIVEN quote builder: shared draft, driver bar, material-list upload.
 - `/quotes` — quote list (status badges, totals).
 - `/quotes/:quoteId` — detail: lines, totals, "Ask agent to work this quote", accept-and-convert.
 - `/products` — catalog search.
+- `/accounts` — Sales UI: accounts below the monthly touch threshold, sorted
+  fewest-first; inline "Log outreach" and "Ask agent to draft outreach".
+- `/accounts/:customerId` — one account's activity timeline + log form.
 - `/chat/:threadId` — the "Other…" freeform surface.
 
 ## Skills

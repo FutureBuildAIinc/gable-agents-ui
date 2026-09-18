@@ -6,6 +6,12 @@ export interface PaneRoute {
 }
 
 export const PANE_ROUTES: PaneRoute[] = [
+  { match: (p) => p === "/inventory/count", load: () => import("../routes/inventory.count") },
+  { match: (p) => p === "/inventory/reorder", load: () => import("../routes/inventory.reorder") },
+  {
+    match: (p) => p === "/inventory/availability" || p === "/inventory",
+    load: () => import("../routes/inventory.availability"),
+  },
   { match: (p) => /^\/products\/[^/]+$/.test(p), load: () => import("../routes/products.$productId") },
   { match: (p) => p.startsWith("/inventory"), load: () => import("../routes/inventory._index") },
   { match: () => true, load: () => import("../routes/launch") },

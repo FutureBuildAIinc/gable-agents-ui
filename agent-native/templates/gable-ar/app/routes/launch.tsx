@@ -11,7 +11,7 @@ import { openArtifact } from "@/lib/artifact";
 import { useScreenTracking } from "@/lib/screen-tracking";
 
 export function meta() {
-  return [{ title: "Launcher — Gable AR" }];
+  return [{ title: "Launcher — Gable Dispatch" }];
 }
 
 /**
@@ -23,25 +23,25 @@ export function meta() {
 
 const ACTIONS = [
   {
-    path: "/receipts/batch",
+    path: "/routes/board",
     icon: IconPlus,
-    title: "Post receipts",
-    description: "Morning cash — rapid batch entry or paste the deposit list; agent maps remittances on screen.",
-    agentDriver: "Fills the batch from your deposit slip, posts after your confirm",
+    title: "Dispatch board",
+    description: "Today's orders → agent clusters routes live on the board; drag or talk to adjust.",
+    agentDriver: "Builds routes, sequences stops, flags window/capacity conflicts",
   },
   {
-    path: "/aging",
+    path: "/routes",
     icon: IconClipboardList,
-    title: "Aging",
-    description: "Buckets 0/30/60/90 with balances, last payment, open orders, and credit bars.",
-    agentDriver: "Reads any customer's ledger aloud and drafts dunning",
+    title: "Routes",
+    description: "Every route with status, stops, vehicles, drivers, and POD.",
+    agentDriver: "Tracks IN_TRANSIT routes and drafts the end-of-day report",
   },
   {
-    path: "/credit-holds",
+    path: "/will-call",
     icon: IconPackage,
-    title: "Credit holds",
-    description: "Orders parked ON_HOLD over credit — review, request release, or contact the customer.",
-    agentDriver: "Surfaces the held orders with quote context and drafts the release request",
+    title: "Will-call",
+    description: "Pick tickets and ready-notify for counter pickups.",
+    agentDriver: "Marks picks ready and notifies sales",
   },
 ] as const;
 

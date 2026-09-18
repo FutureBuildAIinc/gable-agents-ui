@@ -26,7 +26,13 @@ Integration surface (X-Integration-Key; no branch header, no user token):
 - `GET /api/integration/orders?date=YYYY-MM-DD&status=` — a day's order book.
   Each order: `{id, status, branch_id, customer_name, address, latitude,
   longitude, scheduled_date, lines:[{product_id, sku, quantity, weight_lbs}]}`
-  (per-unit weights for loading/picking and truck capacity).
+  (per-unit weights for loading/picking and truck capacity). There is **no
+  will-call flag, no delivery_method, and no promised window** on this wire —
+  never invent them; `weight_lbs: 0` means unknown.
+- `GET /api/integration/vehicles` — `[{id, name, vehicle_type, license_plate?,
+  capacity_weight_lbs?, make?, model?, year?}]`; `capacity_weight_lbs` null =
+  rating never recorded (unknown, not zero).
+- `GET /api/integration/drivers` — `[{id, name, status}]` (ACTIVE/INACTIVE/ON_LEAVE).
 - `POST /api/integration/delivery-routes` — body
   `{vehicle_id, driver_id?, scheduled_date, notes, stops:[{order_id, sequence,
   lat?, lng?}], load_manifest?}` → `{route_id, stop_count, created, replaced}`.
@@ -46,9 +52,31 @@ admin/owner/warehouse/driver; NOT branch-scoped — no X-Branch-Id):
   + deliveries endpoints and returns `{route, deliveries}`.
 
 Related (not wrapped by this app's actions): vehicles/drivers CRUD and
-`GET /api/integration/{vehicles,drivers,locations}` for picking a truck/driver,
-`/reorder` and `/optimize` for stop ordering, `PUT /api/v1/delivery/deliveries/{id}/status`
-for stop completion with POD.
+`GET /api/integration/locations`, `/reorder` and `/optimize` for stop ordering,
+`PUT /api/v1/delivery/deliveries/{id}/status` for stop completion with POD.
+
+## The dispatch board's shared draft
+
+The `/routes/board` screen is a shared-draft workspace (same pattern as
+gable-quote's quote-builder): the doc lives in application state under
+`dispatch-board` as `{ rev, date?, lanes: { unassigned: OrderCard[], routes:
+[{ id?, vehicleId?, vehicleLabel?, driverId?, driverLabel?, stops: OrderCard[]
+}] }, notes? }`. `OrderCard` = `{ orderId, customerName?, town?, willCall?,
+sizeClass?, weightLbs?, promisedWindow?, status? }` — every optional field is
+omitted when gable's wire doesn't carry it.
+
+- The human UI polls and adopts newer revs; the agent writes via the
+  `board-set-draft` action (`setDate`, `addRoute`, `setVehicle`, `setDriver`,
+  `assignOrders`, `moveStop`, `removeRoute`, `setNotes`, `clear`). A bare call
+  with no args is a pure read; `expectedRev` guards dependent writes.
+- The UI seeds the draft from gable truth: on date change it refills
+  unassigned from `list-orders-for-date` minus orders already on a live route,
+  and cards that land on a real route leave the draft.
+- Planned lanes become real via `create-route` (human confirms); live lanes
+  dispatch/complete in place. `get-board` (composed: list-routes + per-route
+  deliveries) is the one query the screen polls/invalidates.
+- Load sequencing hint: heavy drops go last-on-first-off (heaviest lines load
+  first, deliver last), using each order's summed `quantity × weight_lbs`.
 
 ## Domain rules
 

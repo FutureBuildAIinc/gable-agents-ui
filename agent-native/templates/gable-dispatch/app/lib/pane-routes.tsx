@@ -6,6 +6,8 @@ export interface PaneRoute {
 }
 
 export const PANE_ROUTES: PaneRoute[] = [
+  { match: (p) => p === "/routes/board", load: () => import("../routes/routes.board") },
+  { match: (p) => p === "/will-call", load: () => import("../routes/will-call") },
   { match: (p) => /^\/routes\/[^/]+$/.test(p), load: () => import("../routes/routes.$routeId") },
   { match: (p) => p.startsWith("/routes"), load: () => import("../routes/routes._index") },
   { match: () => true, load: () => import("../routes/launch") },

@@ -4,6 +4,7 @@ import {
   IconPackage,
   IconLayoutSidebarLeftExpand,
   IconPlus,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -61,6 +62,13 @@ const ITEMS: RailItem[] = [
     title: "Products",
     icon: IconPackage,
     artifactTitle: "Products",
+  },
+  {
+    kind: "artifact",
+    to: "/accounts",
+    title: "Accounts",
+    icon: IconUsers,
+    artifactTitle: "Accounts",
   },
 ];
 

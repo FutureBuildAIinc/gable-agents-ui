@@ -11,8 +11,8 @@ export function meta() {
 
 /**
  * Chat is front and center. The workbench opens in the artifact pane (or a
- * detached window); the launcher tile below offers the fastest pointer into
- * the quote builder.
+ * detached window); the launcher tiles below offer the fastest pointer into
+ * the quote builder and the account-engagement view.
  */
 export default function ChatHome() {
   const [threadId] = useState(getChatHomeThreadId);
@@ -31,13 +31,20 @@ export default function ChatHome() {
   }, [threadId]);
 
   return (
-    <div className="flex h-full items-center justify-center">
+    <div className="flex h-full items-center justify-center gap-3">
       <button
         type="button"
         className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-medium"
         onClick={() => openArtifact("/quotes/new", "New Quote")}
       >
         New Quote →
+      </button>
+      <button
+        type="button"
+        className="border-input text-foreground rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent"
+        onClick={() => openArtifact("/accounts", "Accounts")}
+      >
+        Accounts needing outreach →
       </button>
     </div>
   );
